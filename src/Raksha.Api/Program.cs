@@ -11,7 +11,7 @@ namespace Raksha.Api
             builder.Services.AddInfrastructure(builder.Configuration);
 
             // Add services to the container.
-            //builder.Services.AddAuthorization();
+            builder.Services.AddAuthorization();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

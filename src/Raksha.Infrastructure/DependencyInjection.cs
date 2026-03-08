@@ -13,7 +13,7 @@ namespace Raksha.Infrastructure
         {
             var postgreConnectionString = configuration.GetConnectionString("PostgreConnectionString");
             var mongoDBConnectionString = configuration.GetConnectionString("MongoDBConnectionString");
-            var redisConnectionString = configuration.GetConnectionString("redisConnectionString");
+            var redisConnectionString = configuration.GetConnectionString("RedisConnectionString");
 
             services.AddDbContext<ApplicationDbContext>(options =>
             {
@@ -44,6 +44,7 @@ namespace Raksha.Infrastructure
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
                 options.User.RequireUniqueEmail = false;
             })
+                .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddSignInManager()
             .AddDefaultTokenProviders();
