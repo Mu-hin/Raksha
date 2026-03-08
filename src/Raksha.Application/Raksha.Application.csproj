@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Raksha.Domain\Raksha.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
