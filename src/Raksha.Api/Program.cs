@@ -1,4 +1,6 @@
 
+using Raksha.Infrastructure;
+
 namespace Raksha.Api
 {
     public class Program
@@ -6,9 +8,10 @@ namespace Raksha.Api
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            builder.Services.AddInfrastructure(builder.Configuration);
 
             // Add services to the container.
-            builder.Services.AddAuthorization();
+            //builder.Services.AddAuthorization();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
@@ -25,7 +28,7 @@ namespace Raksha.Api
 
             app.UseHttpsRedirection();
 
-            app.UseAuthorization();
+            //app.UseAuthorization();
 
             var summaries = new[]
             {
