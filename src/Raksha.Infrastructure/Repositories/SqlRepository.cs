@@ -1,6 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Raksha.Domain.Common;
 using Raksha.Domain.Interfaces;
+using Raksha.Infrastructure.Data;
 using System.Collections;
 using System.Data;
 using System.Data.Common;
@@ -11,6 +13,197 @@ namespace Raksha.Infrastructure.Repositories
 {
     public class SqlRepository<TEntity, TKey> : ISqlRepository<TEntity, TKey> where TEntity : BaseEntity<TKey>
     {
+        protected readonly IApplicationDbContext _dbContext;
+        protected readonly DbSet<TEntity> _dbSet;
+
+        public SqlRepository(IApplicationDbContext dbContext)
+        {
+            _dbContext = dbContext;
+            _dbSet = _dbContext.DbSet<TEntity>();
+        }
+
+        #region Query
+
+        public IQueryable<TEntity> Query(bool? isActive = null, bool withDeleted = false,
+            bool isAsNoTracking = true)
+        {
+            IQueryable<TEntity> query = _dbSet;
+
+            if (isActive != null)
+            {
+                if (isActive.Value)
+                    query = query.Where(x => x.Status == (int)EntityStatus.Active);
+                else
+                    query = query.Where(x => x.Status == (int)EntityStatus.Inactive);
+            }
+
+            if (isAsNoTracking)
+                query = query.AsNoTracking();
+
+            if (!withDeleted)
+                query = query.Where(x => x.Status != (int)EntityStatus.Deleted);
+
+            return query;
+        }
+
+        #endregion
+
+        #region Get (Single)
+
+        public async Task<TEntity?> GetAsync(TKey id,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+            return await query.FirstOrDefaultAsync(e => e.Id!.Equals(id), cancellationToken);
+        }
+
+        public async Task<TEntity?> GetAsync(Expression<Func<TEntity, bool>> predicate,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+            return await query.FirstOrDefaultAsync(predicate, cancellationToken);
+        }
+
+        public async Task<TResult?> GetAsync<TResult>(TKey id,
+            Expression<Func<TEntity, TResult>> selector,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+            return await query
+                .Where(e => e.Id!.Equals(id))
+                .Select(selector)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<TResult?> GetAsync<TResult>(Expression<Func<TEntity, bool>> predicate,
+            Expression<Func<TEntity, TResult>> selector,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+            return await query
+                .Where(predicate)
+                .Select(selector)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<int> CountAsync(Expression<Func<TEntity, bool>>? predicate = null,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+
+            if (predicate != null)
+                query = query.Where(predicate);
+
+            return await query.CountAsync(cancellationToken);
+        }
+
+        public async Task<bool> IsExistAsync(Expression<Func<TEntity, bool>> predicate,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+            return await query.AnyAsync(predicate, cancellationToken);
+        }
+
+        #endregion
+
+        #region Load (List)
+
+        public async Task<List<TEntity>> LoadAsync(
+            Expression<Func<TEntity, bool>>? predicate = null,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+
+            if (predicate is not null)
+                query = query.Where(predicate);
+
+            return await query.ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<TResult>> LoadAsync<TResult>(
+            Expression<Func<TEntity, TResult>> selector,
+            Expression<Func<TEntity, bool>>? predicate = null,
+            bool? isActive = null, bool withDeleted = false, bool isAsNoTracking = true,
+            CancellationToken cancellationToken = default)
+        {
+            var query = Query(isActive, withDeleted, isAsNoTracking);
+
+            if (predicate is not null)
+                query = query.Where(predicate);
+
+            return await query.Select(selector).ToListAsync(cancellationToken);
+        }
+
+        #endregion
+
+        #region Operations
+
+        public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+        {
+            await _dbSet.AddAsync(entity, cancellationToken);
+        }
+
+        public Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
+        {
+            _dbSet.Update(entity);
+            return Task.CompletedTask;
+        }
+
+        public async Task DeleteAsync(TKey id, CancellationToken cancellationToken = default)
+        {
+            var entity = await _dbSet
+                .FirstOrDefaultAsync(e => e.Id!.Equals(id), cancellationToken);
+
+            if (entity is null) return;
+
+            entity.Status = (int)EntityStatus.Deleted;
+        }
+
+        public async Task DeleteAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
+        {
+            var entities = await _dbSet
+                .Where(predicate)
+                .ToListAsync(cancellationToken);
+
+            foreach (var entity in entities)
+            {
+                entity.Status = (int)EntityStatus.Deleted;
+            }
+        }
+
+        public Task DeletePermanentlyAsync(TEntity entity, CancellationToken cancellationToken = default)
+        {
+            _dbSet.Remove(entity);
+            return Task.CompletedTask;
+        }
+
+        public async Task<int> ExecuteSqlCommandAsync(string queryText, int timeout = 60)
+        {
+            _dbContext.Database.SetCommandTimeout(timeout);
+            return await _dbContext.Database.ExecuteSqlRawAsync(queryText);
+        }
+
+        public async Task<int> SaveChangesAsync()
+        {
+            return await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task<int> MigrateChangesAsync()
+        {
+            return await _dbContext.MigrateChangesAsync();
+        }
+
+        #endregion
+
+        #region Raw SQL
+
         public async Task<List<TResult>> ExecuteSqlQueryAsync<TResult>(string queryText, IEnumerable<DbParameter> parameters, int timeout = 60, CommandType commandType = CommandType.Text)
         {
             var type = typeof(TResult);
@@ -23,12 +216,12 @@ namespace Raksha.Infrastructure.Repositories
 
         public List<TResult> ExecuteSqlQueryRaw<TResult>(string queryText, IEnumerable<DbParameter> parameters)
         {
-            var reuslt = _dbContext.Database.SqlQueryRaw<TResult>(queryText, parameters.ToArray()).ToList();
-
-            return reuslt;
+            var result = _dbContext.Database.SqlQueryRaw<TResult>(queryText, parameters.ToArray()).ToList();
+            return result;
         }
 
         #region Helper
+
         private async Task<IList> ExecuteSqlQueryAsync(Type entityType, string queryText, IEnumerable<DbParameter>? parameters = null,
             int timeout = 60, CommandType commandType = CommandType.Text)
         {
@@ -66,7 +259,6 @@ namespace Raksha.Infrastructure.Repositories
                     command.CommandType = commandType;
                     command.CommandText = queryText;
 
-                    // Add parameters to the command
                     if (parameters != null)
                     {
                         foreach (var param in parameters)
@@ -99,11 +291,8 @@ namespace Raksha.Infrastructure.Repositories
                                 {
                                     var prop = entityProperties[i];
 
-                                    // if column doesn't contains in query result then skip that column
                                     if (resultColumns.Contains(prop.Name) == false)
-                                    {
                                         continue;
-                                    }
 
                                     var ordinal = reader.GetOrdinal(prop.Name);
                                     if (ordinal >= 0 && reader.IsDBNull(ordinal) == false)
@@ -222,7 +411,9 @@ namespace Raksha.Infrastructure.Repositories
 
             return list;
         }
+
         #endregion
 
+        #endregion
     }
 }

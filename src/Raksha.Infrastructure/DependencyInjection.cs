@@ -5,8 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
 using Raksha.Application.Interfaces;
+using Raksha.Domain.Interfaces;
 using Raksha.Infrastructure.Data;
 using Raksha.Infrastructure.Identity;
+using Raksha.Infrastructure.Repositories;
 using Raksha.Infrastructure.Services;
 using StackExchange.Redis;
 
@@ -77,9 +79,10 @@ namespace Raksha.Infrastructure
             .AddDefaultTokenProviders();
             #endregion
 
-            // Register your infrastructure services here
-            // For example:
-            // services.AddScoped<IMyService, MyService>();
+            #region DbContext & Repository
+            services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
+            services.AddScoped(typeof(ISqlRepository<,>), typeof(SqlRepository<,>));
+            #endregion
         }
     }
 }
