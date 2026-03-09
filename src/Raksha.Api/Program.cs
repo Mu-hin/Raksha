@@ -8,6 +8,9 @@ namespace Raksha.Api
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            builder.Services.AddAuthentication(); // registers IAuthenticationSchemeProvider + IDataProtectionProvider
+            
             builder.Services.AddInfrastructure(builder.Configuration);
 
             // Add services to the container.
@@ -16,6 +19,8 @@ namespace Raksha.Api
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+
+            builder.Services.AddSingleton(TimeProvider.System); //registers Time Provider
 
             var app = builder.Build();
 

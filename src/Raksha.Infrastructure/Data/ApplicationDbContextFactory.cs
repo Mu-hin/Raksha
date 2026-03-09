@@ -1,21 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace Raksha.Infrastructure.Data
-{
-    public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<ApplicationDbContext>
-    {
-        public ApplicationDbContext CreateDbContext(string[] args)
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+//namespace Raksha.Infrastructure.Data
+//{
+//    public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<ApplicationDbContext>
+//    {
+//        public ApplicationDbContext CreateDbContext(string[] args)
+//        {
+//            var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
 
-            // Use a hardcoded connection string for design-time only
-            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=authentication_authorization_demo;Username=myuser;Password=mypassword");
+//            // Use a hardcoded connection string for design-time only
+//            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=authentication_authorization_demo;Username=myuser;Password=mypassword");
 
-            return new ApplicationDbContext(optionsBuilder.Options);
-        }
-    }
-}
+//            return new ApplicationDbContext(optionsBuilder.Options);
+//        }
+//    }
+//}
 
 /*
 this file was not present when throwing this error during migration:
