@@ -1,4 +1,5 @@
 
+using Raksha.Api.Middleware;
 using Raksha.Infrastructure;
 
 namespace Raksha.Api
@@ -21,6 +22,9 @@ namespace Raksha.Api
             builder.Services.AddSwaggerGen();
 
             builder.Services.AddSingleton(TimeProvider.System); //registers Time Provider
+
+            builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+            builder.Services.AddProblemDetails();
 
             var app = builder.Build();
 
@@ -54,6 +58,8 @@ namespace Raksha.Api
             })
             .WithName("GetWeatherForecast")
             .WithOpenApi();
+
+            app.UseExceptionHandler();
 
             app.Run();
         }
