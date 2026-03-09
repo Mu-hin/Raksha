@@ -1,7 +1,7 @@
 ﻿namespace Raksha.Domain.Common
 {
-    public class BaseEntity
+    public class BaseEntity<TKey>
     {
-        public Guid Id { get; set; }
+        public TKey Id { get; set; }
     }
 }

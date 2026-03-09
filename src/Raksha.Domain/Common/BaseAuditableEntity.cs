@@ -1,6 +1,6 @@
 ﻿namespace Raksha.Domain.Common
 {
-    public class BaseAuditableEntity : BaseEntity
+    public class BaseAuditableEntity<TKey> : BaseEntity<TKey>
     {
         public DateTime CreatedAt { get; set; }
         public string CreatedBy { get; set; } = string.Empty;

@@ -2,7 +2,7 @@
 
 namespace Raksha.Domain.Entities
 {
-    public class RefreshToken : BaseAuditableEntity
+    public class RefreshToken : BaseAuditableEntity<Guid>
     {
         public Guid UserId { get; set; }
         public string JwtToken { get; set; } = string.Empty;
