@@ -31,24 +31,24 @@ namespace Raksha.Infrastructure
             });
             #endregion
 
-            #region MongoDB
-            services.AddSingleton<IMongoClient>(sp =>
-            {
-                return new MongoClient(mongoDBConnectionString);
-            });
+            //#region MongoDB
+            //services.AddSingleton<IMongoClient>(sp =>
+            //{
+            //    return new MongoClient(mongoDBConnectionString);
+            //});
 
-            services.AddSingleton<MongoDbContext>();
-            #endregion
+            //services.AddSingleton<MongoDbContext>();
+            //#endregion
 
-            #region Redis
-            services.AddSingleton<IConnectionMultiplexer>(c =>
-            {
-                var configuration = ConfigurationOptions.Parse(redisConnectionString, true);
-                return ConnectionMultiplexer.Connect(configuration);
-            });
+            //#region Redis
+            //services.AddSingleton<IConnectionMultiplexer>(c =>
+            //{
+            //    var configuration = ConfigurationOptions.Parse(redisConnectionString, true);
+            //    return ConnectionMultiplexer.Connect(configuration);
+            //});
 
-            services.AddSingleton<IRedisCacheService, RedisCacheService>();
-            #endregion
+            //services.AddSingleton<IRedisCacheService, RedisCacheService>();
+            //#endregion
 
             #region Identity
             services.AddIdentityCore<ApplicationUser>(options =>

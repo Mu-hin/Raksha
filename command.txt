@@ -1,0 +1,1 @@
+dotnet ef migrations add InitialMigration --project src/Raksha.Infrastructure --startup-project src/Raksha.Api --context ApplicationDbContext --output-dir Data/Migrations
