@@ -1,5 +1,7 @@
 ﻿
 using Raksha.Domain.Common;
+using System.Data;
+using System.Data.Common;
 using System.Linq.Expressions;
 
 namespace Raksha.Domain.Interfaces
@@ -20,5 +22,8 @@ namespace Raksha.Domain.Interfaces
         Task<List<TResult>> LoadAsync<TResult>(Expression<Func<TEntity, TResult>> selector,
             Expression<Func<TEntity, bool>>? predicate = null,
             CancellationToken cancellationToken = default);
+
+        Task<List<TResult>> ExecuteSqlQueryAsync<TResult>(string queryText, IEnumerable<DbParameter> parameters, int timeout = 60, CommandType commandType = CommandType.Text);
+        List<TResult> ExecuteSqlQueryRaw<TResult>(string queryText, IEnumerable<DbParameter> parameters);
     }
 }
