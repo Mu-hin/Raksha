@@ -33,14 +33,14 @@ namespace Raksha.Infrastructure
             });
             #endregion
 
-            //#region MongoDB
-            //services.AddSingleton<IMongoClient>(sp =>
-            //{
-            //    return new MongoClient(mongoDBConnectionString);
-            //});
+            #region MongoDB
+            services.AddSingleton<IMongoClient>(sp =>
+            {
+                return new MongoClient(mongoDBConnectionString);
+            });
 
-            //services.AddSingleton<MongoDbContext>();
-            //#endregion
+            services.AddSingleton<MongoDbContext>();
+            #endregion
 
             //#region Redis
             //services.AddSingleton<IConnectionMultiplexer>(c =>
@@ -82,6 +82,7 @@ namespace Raksha.Infrastructure
             #region DbContext & Repository
             services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
             services.AddScoped(typeof(ISqlRepository<,>), typeof(SqlRepository<,>));
+            services.AddScoped(typeof(INoSqlRepository<,>), typeof(NoSqlRepository<,>));
             #endregion
         }
     }

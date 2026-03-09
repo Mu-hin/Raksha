@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
 
 namespace Raksha.Infrastructure.Data
@@ -11,6 +11,16 @@ namespace Raksha.Infrastructure.Data
         {
             var mongoUrl = MongoUrl.Create(configuration.GetConnectionString("MongoDBConnectionString"));
             _database = client.GetDatabase(mongoUrl.DatabaseName);
+        }
+
+        public IMongoCollection<TEntity> Collection<TEntity>() where TEntity : class
+        {
+            return _database.GetCollection<TEntity>(GetCollectionName<TEntity>());
+        }
+
+        private static string GetCollectionName<TEntity>()
+        {
+            return typeof(TEntity).Name + "s";
         }
     }
 }
