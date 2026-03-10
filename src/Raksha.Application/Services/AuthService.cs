@@ -82,7 +82,7 @@ namespace Raksha.Application.Services
             var roles = new List<string> { Roles.User };
 
             // Generate tokens
-            var accessToken = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
+            var (accessToken, expiresAt) = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
             var refreshToken = CreateRefreshToken(userDto.Id, accessToken);
 
             await _refreshTokenRepository.AddAsync(refreshToken, ct);
@@ -98,7 +98,7 @@ namespace Raksha.Application.Services
                 Roles = roles,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+                ExpiresAt = expiresAt
             }, message: "Registration successful.");
         }
 
@@ -136,7 +136,7 @@ namespace Raksha.Application.Services
 
             // Generate tokens
             var roles = await _identityService.GetRolesAsync(userDto.Id, ct);
-            var accessToken = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
+            var (accessToken, expiresAt) = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
             var refreshToken = CreateRefreshToken(userDto.Id, accessToken);
 
             await _refreshTokenRepository.AddAsync(refreshToken, ct);
@@ -152,7 +152,7 @@ namespace Raksha.Application.Services
                 Roles = roles.ToList(),
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+                ExpiresAt = expiresAt
             }, message: "Login successful.");
         }
 
@@ -174,16 +174,10 @@ namespace Raksha.Application.Services
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
                 return Result<AuthResponse>.Failure("Invalid access token.");
 
-            // Find existing refresh token
+            // Find existing refresh token (only returns active, non-expired, non-revoked tokens)
             var existingToken = await _refreshTokenRepository.GetActiveByTokenAsync(request.RefreshToken, userId, ct);
             if (existingToken == null)
-                return Result<AuthResponse>.Failure("Invalid refresh token.");
-
-            if (!existingToken.IsActive)
-            {
-                _logger.LogWarning("Attempted to use revoked/expired refresh token for user {UserId}", userId);
-                return Result<AuthResponse>.Failure("Refresh token is expired or revoked.");
-            }
+                return Result<AuthResponse>.Failure("Invalid or expired refresh token.");
 
             // Find user
             var userDto = await _identityService.FindByIdAsync(userId, ct);
@@ -194,12 +188,20 @@ namespace Raksha.Application.Services
             if (userDto.Status == EntityStatus.Inactive || userDto.Status == EntityStatus.Deleted)
                 return Result<AuthResponse>.Failure("Your account is no longer active.");
 
-            // Revoke old token
+            // Revoke old token immediately to prevent race condition (concurrent refresh with same token)
             existingToken.RevokedAt = DateTime.UtcNow;
+            await _refreshTokenRepository.SaveChangesAsync();
+
+            // Blacklist the old access token so it can't be used during remaining lifetime
+            if (!string.IsNullOrEmpty(existingToken.JwtToken))
+            {
+                var ttl = TimeSpan.FromMinutes(_jwtSettings.AccessTokenExpirationMinutes);
+                await _tokenService.BlacklistTokensAsync(new[] { existingToken.JwtToken }, ttl, ct);
+            }
 
             // Generate new tokens
             var roles = await _identityService.GetRolesAsync(userId, ct);
-            var newAccessToken = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
+            var (newAccessToken, expiresAt) = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
             var newRefreshToken = CreateRefreshToken(userId, newAccessToken);
 
             // Link old token to new for audit trail
@@ -218,7 +220,7 @@ namespace Raksha.Application.Services
                 Roles = roles.ToList(),
                 AccessToken = newAccessToken,
                 RefreshToken = newRefreshToken.Token,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
+                ExpiresAt = expiresAt
             }, message: "Token refreshed successfully.");
         }
 
@@ -234,6 +236,13 @@ namespace Raksha.Application.Services
 
             token.RevokedAt = DateTime.UtcNow;
             await _refreshTokenRepository.SaveChangesAsync();
+
+            // Blacklist the associated access token so it can't be used during remaining lifetime
+            if (!string.IsNullOrEmpty(token.JwtToken))
+            {
+                var ttl = TimeSpan.FromMinutes(_jwtSettings.AccessTokenExpirationMinutes);
+                await _tokenService.BlacklistTokensAsync(new[] { token.JwtToken }, ttl, ct);
+            }
 
             _logger.LogInformation("Refresh token revoked for user {UserId}", token.UserId);
 

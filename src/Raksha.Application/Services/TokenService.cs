@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Raksha.Application.Interfaces.Services;
@@ -13,6 +14,7 @@ namespace Raksha.Application.Services
     {
         private readonly JwtSettings _jwtSettings;
         private readonly IRedisCacheService _redisCacheService;
+        private readonly ILogger<TokenService> _logger;
 
         private const string BlacklistPrefix = "blacklist:jwt:";
 
@@ -23,14 +25,17 @@ namespace Raksha.Application.Services
               end
               return #KEYS";
 
-        public TokenService(IOptions<JwtSettings> jwtSettings, IRedisCacheService redisCacheService)
+        public TokenService(IOptions<JwtSettings> jwtSettings, IRedisCacheService redisCacheService, ILogger<TokenService> logger)
         {
             _jwtSettings = jwtSettings.Value;
             _redisCacheService = redisCacheService;
+            _logger = logger;
         }
 
-        public string GenerateAccessToken(Guid userId, string email, string userName, IList<string> roles)
+        public (string Token, DateTime ExpiresAt) GenerateAccessToken(Guid userId, string email, string userName, IList<string> roles)
         {
+            var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
+
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
@@ -51,11 +56,11 @@ namespace Raksha.Application.Services
                 issuer: _jwtSettings.Issuer,
                 audience: _jwtSettings.Audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
+                expires: expiresAt,
                 signingCredentials: credentials
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
         }
 
         public string GenerateRefreshToken()
@@ -90,8 +95,9 @@ namespace Raksha.Application.Services
 
                 return principal;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Token validation failed");
                 return null;
             }
         }

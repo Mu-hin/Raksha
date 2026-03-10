@@ -14,7 +14,8 @@ namespace Raksha.Infrastructure.Repositories
 
         public async Task<RefreshToken?> GetActiveByTokenAsync(string token, Guid userId, CancellationToken ct = default)
         {
-            return await _dbSet.FirstOrDefaultAsync(rt => rt.Token == token && rt.UserId == userId, ct);
+            return await _dbSet.FirstOrDefaultAsync(
+                rt => rt.Token == token && rt.UserId == userId && rt.RevokedAt == null && rt.ExpiresAt > DateTime.UtcNow, ct);
         }
 
         public async Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct = default)

@@ -4,7 +4,7 @@ namespace Raksha.Application.Interfaces.Services
 {
     public interface ITokenService
     {
-        string GenerateAccessToken(Guid userId, string email, string userName, IList<string> roles);
+        (string Token, DateTime ExpiresAt) GenerateAccessToken(Guid userId, string email, string userName, IList<string> roles);
         string GenerateRefreshToken();
         ClaimsPrincipal? GetPrincipalFromExpiredToken(string token);
 
