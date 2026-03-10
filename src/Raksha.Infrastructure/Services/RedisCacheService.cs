@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Raksha.Application.Interfaces;
 using StackExchange.Redis;
@@ -77,6 +79,46 @@ namespace Raksha.Infrastructure.Services
         public async Task<bool> HashExistsAsync(string hashKey, string field)
         {
             return await _database.HashExistsAsync(hashKey, field);
+        }
+
+        #endregion
+
+        #region JWT Blacklist Operations
+
+        private const string BlacklistPrefix = "blacklist:jwt:";
+
+        private const string BlacklistLuaScript =
+            @"local ttl = tonumber(ARGV[1])
+              for i = 1, #KEYS do
+                  redis.call('SETEX', KEYS[i], ttl, '1')
+              end
+              return #KEYS";
+
+        public async Task BlacklistJwtTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl)
+        {
+            var keys = jwtTokens
+                .Select(token => (RedisKey)$"{BlacklistPrefix}{HashJwt(token)}")
+                .ToArray();
+
+            if (keys.Length == 0)
+                return;
+
+            var ttlSeconds = (int)ttl.TotalSeconds;
+            await _database.ScriptEvaluateAsync(BlacklistLuaScript,
+                keys: keys,
+                values: new RedisValue[] { ttlSeconds });
+        }
+
+        public async Task<bool> IsJwtBlacklistedAsync(string jwtToken)
+        {
+            var key = $"{BlacklistPrefix}{HashJwt(jwtToken)}";
+            return await _database.KeyExistsAsync(key);
+        }
+
+        private static string HashJwt(string jwt)
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(jwt));
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
         #endregion

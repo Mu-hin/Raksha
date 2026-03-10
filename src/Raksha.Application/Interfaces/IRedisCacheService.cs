@@ -15,5 +15,9 @@ namespace Raksha.Application.Interfaces
         Task<Dictionary<string, string>> HashGetAllAsync(string hashKey);
         Task<bool> HashRemoveAsync(string hashKey, string field);
         Task<bool> HashExistsAsync(string hashKey, string field);
+
+        // JWT Blacklist operations
+        Task BlacklistJwtTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl);
+        Task<bool> IsJwtBlacklistedAsync(string jwtToken);
     }
 }

@@ -43,10 +43,13 @@ namespace Raksha.Api
             app.UseHttpsRedirection();
 
             app.UseAuthentication();
+            app.UseMiddleware<TokenBlacklistMiddleware>();
             app.UseAuthorization();
 
             app.MapAuthEndpoints();
             app.MapUserEndpoints();
+            app.MapProfileEndpoints();
+            app.MapAuditEndpoints();
 
             app.UseExceptionHandler();
 

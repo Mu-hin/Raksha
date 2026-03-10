@@ -1,0 +1,86 @@
+using Microsoft.Extensions.Logging;
+using MongoDB.Driver;
+using Raksha.Application.DTOs.Audit;
+using Raksha.Application.Interfaces;
+using Raksha.Application.Models;
+using Raksha.Domain.Entities;
+using Raksha.Domain.Interfaces;
+
+namespace Raksha.Infrastructure.Services
+{
+    public class AuditService : IAuditService
+    {
+        private readonly INoSqlRepository<AuditLog, string> _auditRepository;
+        private readonly ILogger<AuditService> _logger;
+
+        public AuditService(
+            INoSqlRepository<AuditLog, string> auditRepository,
+            ILogger<AuditService> logger)
+        {
+            _auditRepository = auditRepository;
+            _logger = logger;
+        }
+
+        public async Task LogAsync(Guid userId, string userEmail, string action, string details)
+        {
+            var auditLog = new AuditLog
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserId = userId,
+                UserEmail = userEmail,
+                Action = action,
+                Details = details,
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _auditRepository.AddAsync(auditLog);
+            _logger.LogInformation("Audit log created: {Action} for user {UserId}", action, userId);
+        }
+
+        public async Task<Result<PagedResult<AuditLogResponse>>> GetPasswordChangeHistoryAsync(AuditFilterRequest filter)
+        {
+            return await GetAuditLogsAsync("PasswordChange", filter);
+        }
+
+        public async Task<Result<PagedResult<AuditLogResponse>>> GetProfileUpdateHistoryAsync(AuditFilterRequest filter)
+        {
+            return await GetAuditLogsAsync("ProfileUpdate", filter);
+        }
+
+        private async Task<Result<PagedResult<AuditLogResponse>>> GetAuditLogsAsync(string action, AuditFilterRequest filter)
+        {
+            var query = _auditRepository.AsQueryable()
+                .Where(a => a.Action == action);
+
+            if (filter.UserId.HasValue)
+                query = query.Where(a => a.UserId == filter.UserId.Value);
+
+            var totalCount = query.Count();
+
+            var items = query
+                .OrderByDescending(a => a.Timestamp)
+                .Skip((filter.Page - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .Select(a => new AuditLogResponse
+                {
+                    Id = a.Id,
+                    UserId = a.UserId,
+                    UserEmail = a.UserEmail,
+                    Action = a.Action,
+                    Details = a.Details,
+                    Timestamp = a.Timestamp
+                })
+                .ToList();
+
+            var pagedResult = new PagedResult<AuditLogResponse>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = filter.Page,
+                PageSize = filter.PageSize
+            };
+
+            return Result<PagedResult<AuditLogResponse>>.Success(data:pagedResult);
+        }
+    }
+}

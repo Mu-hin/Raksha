@@ -14,6 +14,18 @@ namespace Raksha.Api.Endpoints
             var group = app.MapGroup("api/users")
                 .WithTags("Users");
 
+            group.MapPost("", async (CreateUserRequest request, IUserService userService) =>
+            {
+                var result = await userService.CreateAsync(request);
+
+                if (!result.IsSuccess)
+                    return Results.BadRequest(result);
+
+                return Results.Ok(result);
+            })
+            .WithName("CreateUser")
+            .RequireAuthorization(new AuthorizeAttribute { Roles = Roles.Admin });
+
             group.MapGet("{id:guid}", async (Guid id, IUserService userService) =>
             {
                 var result = await userService.GetByIdAsync(id);
@@ -104,6 +116,18 @@ namespace Raksha.Api.Endpoints
                 return Results.Ok(result);
             })
             .WithName("RemoveRole")
+            .RequireAuthorization(new AuthorizeAttribute { Roles = Roles.Admin });
+
+            group.MapPost("{id:guid}/force-logout", async (Guid id, IUserService userService) =>
+            {
+                var result = await userService.ForceLogoutAsync(id);
+
+                if (!result.IsSuccess)
+                    return Results.BadRequest(result);
+
+                return Results.Ok(result);
+            })
+            .WithName("ForceLogoutUser")
             .RequireAuthorization(new AuthorizeAttribute { Roles = Roles.Admin });
         }
     }

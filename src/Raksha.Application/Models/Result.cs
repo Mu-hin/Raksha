@@ -4,25 +4,26 @@ namespace Raksha.Application.Models
     {
         public bool IsSuccess { get; }
         public string Message { get; }
-
-        protected Result(bool isSuccess, string message)
+        public object? Data { get; }
+        protected Result(bool isSuccess, string message, object? data = null)
         {
             IsSuccess = isSuccess;
             Message = message;
+            Data = data;
         }
 
-        public static Result Success(string message = "") => new(true, message);
-        public static Result Failure(string message) => new(false, message);
+        public static Result Success(string message = "", object? data = null) => new(true, message, data);
+        public static Result Failure(string message, object? data = null) => new(false, message, data);
     }
 
     public class Result<T> : Result
     {
-        public T? Data { get; }
+        public new T? Data { get; }
 
         private Result(bool isSuccess, string message, T? data = default)
-            : base(isSuccess, message) => Data = data;
+            : base(isSuccess, message, data) => Data = data;
 
-        public static Result<T> Success(T data, string message = "") => new(true, message, data);
-        public new static Result<T> Failure(string message) => new(false, message);
+        public static Result<T> Success(string message = "", T? data = default) => new(true, message, data);
+        public static Result<T> Failure(string message, T? data = default) => new(false, message, data);
     }
 }

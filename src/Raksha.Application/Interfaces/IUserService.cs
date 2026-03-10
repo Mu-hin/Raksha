@@ -13,5 +13,7 @@ namespace Raksha.Application.Interfaces
         Task<Result> DeleteAsync(Guid userId);
         Task<Result> AssignRoleAsync(Guid userId, string role);
         Task<Result> RemoveRoleAsync(Guid userId, string role);
+        Task<Result<UserResponse>> CreateAsync(CreateUserRequest request);
+        Task<Result> ForceLogoutAsync(Guid userId);
     }
 }

@@ -21,9 +21,7 @@ namespace Raksha.Api.Endpoints
                 return Results.Ok(result);
             })
             .WithName("Register")
-            .AllowAnonymous()
-            .Produces<Result<AuthResponse>>(StatusCodes.Status200OK)
-            .Produces<Result>(StatusCodes.Status400BadRequest);
+            .AllowAnonymous();
 
             group.MapPost("login", async (LoginRequest request, IAuthService authService) =>
             {
@@ -35,9 +33,7 @@ namespace Raksha.Api.Endpoints
                 return Results.Ok(result);
             })
             .WithName("Login")
-            .AllowAnonymous()
-            .Produces<Result<AuthResponse>>(StatusCodes.Status200OK)
-            .Produces<Result>(StatusCodes.Status401Unauthorized);
+            .AllowAnonymous();
 
             group.MapPost("refresh-token", async (RefreshTokenRequest request, IAuthService authService) =>
             {
@@ -49,9 +45,7 @@ namespace Raksha.Api.Endpoints
                 return Results.Ok(result);
             })
             .WithName("RefreshToken")
-            .AllowAnonymous()
-            .Produces<Result<AuthResponse>>(StatusCodes.Status200OK)
-            .Produces<Result>(StatusCodes.Status401Unauthorized);
+            .AllowAnonymous();
 
             group.MapPost("revoke-token", async (RevokeTokenRequest request, IAuthService authService) =>
             {
@@ -63,9 +57,23 @@ namespace Raksha.Api.Endpoints
                 return Results.Ok(result);
             })
             .WithName("RevokeToken")
-            .RequireAuthorization()
-            .Produces<Result>(StatusCodes.Status200OK)
-            .Produces<Result>(StatusCodes.Status400BadRequest);
+            .RequireAuthorization();
+
+            group.MapPost("change-password", async (ChangePasswordRequest request, ClaimsPrincipal user, IAuthService authService) =>
+            {
+                var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var parsedUserId))
+                    return Results.Json(Result.Failure("Invalid token."), statusCode: StatusCodes.Status401Unauthorized);
+
+                var result = await authService.ChangePasswordAsync(parsedUserId, request);
+
+                if (!result.IsSuccess)
+                    return Results.BadRequest(result);
+
+                return Results.Ok(result);
+            })
+            .WithName("ChangePassword")
+            .RequireAuthorization();
 
             group.MapGet("me", (ClaimsPrincipal user) =>
             {
@@ -85,12 +93,10 @@ namespace Raksha.Api.Endpoints
                     Roles = roles
                 };
 
-                return Results.Ok(Result<UserProfileResponse>.Success(profile));
+                return Results.Ok(Result<UserProfileResponse>.Success(data: profile));
             })
             .WithName("GetCurrentUser")
-            .RequireAuthorization()
-            .Produces<Result<UserProfileResponse>>(StatusCodes.Status200OK)
-            .Produces<Result>(StatusCodes.Status401Unauthorized);
+            .RequireAuthorization();
         }
     }
 }

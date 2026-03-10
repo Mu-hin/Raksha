@@ -46,15 +46,15 @@ namespace Raksha.Infrastructure
             services.AddSingleton<MongoDbContext>();
             #endregion
 
-            //#region Redis
-            //services.AddSingleton<IConnectionMultiplexer>(c =>
-            //{
-            //    var configuration = ConfigurationOptions.Parse(redisConnectionString, true);
-            //    return ConnectionMultiplexer.Connect(configuration);
-            //});
+            #region Redis
+            services.AddSingleton<IConnectionMultiplexer>(c =>
+            {
+                var config = ConfigurationOptions.Parse(redisConnectionString!, true);
+                return ConnectionMultiplexer.Connect(config);
+            });
 
-            //services.AddSingleton<IRedisCacheService, RedisCacheService>();
-            //#endregion
+            services.AddSingleton<IRedisCacheService, RedisCacheService>();
+            #endregion
 
             #region Identity
             services.AddIdentityCore<ApplicationUser>(options =>
@@ -121,6 +121,9 @@ namespace Raksha.Infrastructure
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IIdentitySeeder, IdentitySeeder>();
+            services.AddScoped<IAuditService, AuditService>();
+            services.AddScoped<IFileService, FileService>();
+            services.Configure<FileSettings>(configuration.GetSection(FileSettings.SectionName));
             #endregion
         }
     }

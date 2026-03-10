@@ -20,6 +20,8 @@ namespace Raksha.Infrastructure.Services
         private readonly ApplicationDbContext _dbContext;
         private readonly JwtSettings _jwtSettings;
         private readonly ITokenService _tokenService;
+        private readonly IRedisCacheService _redisCacheService;
+        private readonly IAuditService _auditService;
         private readonly ILogger<AuthService> _logger;
 
         public AuthService(
@@ -28,6 +30,8 @@ namespace Raksha.Infrastructure.Services
             ApplicationDbContext dbContext,
             IOptions<JwtSettings> jwtSettings,
             ITokenService tokenService,
+            IRedisCacheService redisCacheService,
+            IAuditService auditService,
             ILogger<AuthService> logger)
         {
             _userManager = userManager;
@@ -35,11 +39,25 @@ namespace Raksha.Infrastructure.Services
             _dbContext = dbContext;
             _jwtSettings = jwtSettings.Value;
             _tokenService = tokenService;
+            _redisCacheService = redisCacheService;
+            _auditService = auditService;
             _logger = logger;
         }
 
         public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+                return Result<AuthResponse>.Failure("A valid email is required.");
+
+            if (string.IsNullOrWhiteSpace(request.UserName))
+                return Result<AuthResponse>.Failure("Username is required.");
+
+            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+                return Result<AuthResponse>.Failure("Password is required and must be at least 6 characters.");
+
+            if (string.IsNullOrWhiteSpace(request.FirstName))
+                return Result<AuthResponse>.Failure("First name is required.");
+
             // Single query to check both email and username
             var normalizedEmail = _userManager.NormalizeEmail(request.Email);
             var normalizedUserName = _userManager.NormalizeName(request.UserName);
@@ -87,14 +105,14 @@ namespace Raksha.Infrastructure.Services
             var roles = new List<string> { Roles.User };
 
             var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
-            var refreshToken = CreateRefreshToken(user.Id);
+            var refreshToken = CreateRefreshToken(user.Id, accessToken);
 
             _dbContext.Set<RefreshToken>().Add(refreshToken);
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("User {UserId} registered with email {Email}", user.Id, user.Email);
 
-            return Result<AuthResponse>.Success(new AuthResponse
+            return Result<AuthResponse>.Success(data: new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email!,
@@ -103,11 +121,17 @@ namespace Raksha.Infrastructure.Services
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
-            }, "Registration successful.");
+            }, message: "Registration successful.");
         }
 
         public async Task<Result<AuthResponse>> LoginAsync(LoginRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.Email))
+                return Result<AuthResponse>.Failure("Email is required.");
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+                return Result<AuthResponse>.Failure("Password is required.");
+
             var user = await _userManager.FindByEmailAsync(request.Email);
             if (user == null)
             {
@@ -128,7 +152,7 @@ namespace Raksha.Infrastructure.Services
 
             var roles = await _userManager.GetRolesAsync(user);
             var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
-            var refreshToken = CreateRefreshToken(user.Id);
+            var refreshToken = CreateRefreshToken(user.Id, accessToken);
 
             user.RefreshTokens ??= new List<RefreshToken>();
             user.RefreshTokens.Add(refreshToken);
@@ -136,7 +160,7 @@ namespace Raksha.Infrastructure.Services
 
             _logger.LogInformation("User {UserId} logged in", user.Id);
 
-            return Result<AuthResponse>.Success(new AuthResponse
+            return Result<AuthResponse>.Success(data: new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email!,
@@ -145,11 +169,17 @@ namespace Raksha.Infrastructure.Services
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
-            }, "Login successful.");
+            }, message: "Login successful.");
         }
 
         public async Task<Result<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.AccessToken))
+                return Result<AuthResponse>.Failure("Access token is required.");
+
+            if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                return Result<AuthResponse>.Failure("Refresh token is required.");
+
             var principal = _tokenService.GetPrincipalFromExpiredToken(request.AccessToken);
             if (principal == null)
                 return Result<AuthResponse>.Failure("Invalid access token.");
@@ -181,7 +211,7 @@ namespace Raksha.Infrastructure.Services
             // Generate new tokens
             var roles = await _userManager.GetRolesAsync(user);
             var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
-            var newRefreshToken = CreateRefreshToken(user.Id);
+            var newRefreshToken = CreateRefreshToken(user.Id, newAccessToken);
 
             // Link old token to new for audit trail
             existingToken.ReplacedByToken = newRefreshToken.Token;
@@ -191,7 +221,7 @@ namespace Raksha.Infrastructure.Services
 
             _logger.LogInformation("Refresh token rotated for user {UserId}", userId);
 
-            return Result<AuthResponse>.Success(new AuthResponse
+            return Result<AuthResponse>.Success(data: new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email!,
@@ -200,7 +230,7 @@ namespace Raksha.Infrastructure.Services
                 AccessToken = newAccessToken,
                 RefreshToken = newRefreshToken.Token,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
-            }, "Token refreshed successfully.");
+            }, message: "Token refreshed successfully.");
         }
 
         public async Task<Result> RevokeTokenAsync(string refreshToken)
@@ -222,18 +252,90 @@ namespace Raksha.Infrastructure.Services
             return Result.Success("Token revoked successfully.");
         }
 
+        public async Task<Result> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+                return Result.Failure("Current password is required.");
+
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+                return Result.Failure("New password is required and must be at least 6 characters.");
+
+            if (request.CurrentPassword == request.NewPassword)
+                return Result.Failure("New password must be different from current password.");
+
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+                return Result.Failure("User not found.");
+
+            var changeResult = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+            if (!changeResult.Succeeded)
+            {
+                var errors = string.Join(", ", changeResult.Errors.Select(e => e.Description));
+                return Result.Failure($"Failed to change password: {errors}");
+            }
+
+            var invalidateResult = await InvalidateUserSessionsAsync(userId);
+            if (!invalidateResult.IsSuccess)
+                return invalidateResult;
+
+            await _auditService.LogAsync(userId, user.Email!, "PasswordChange", "Password changed by user.");
+
+            _logger.LogInformation("Password changed for user {UserId}", userId);
+            return Result.Success("Password changed successfully. All sessions have been invalidated.");
+        }
+
         #region Private Helper Methods
 
-        private RefreshToken CreateRefreshToken(Guid userId, string? ipAddress = null)
+        private RefreshToken CreateRefreshToken(Guid userId, string accessToken, string? ipAddress = null)
         {
             return new RefreshToken
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
+                JwtToken = accessToken,
                 Token = _tokenService.GenerateRefreshToken(),
                 ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
                 CreatedByIp = ipAddress
             };
+        }
+
+        private async Task<Result> InvalidateUserSessionsAsync(Guid userId)
+        {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
+            try
+            {
+                var activeTokens = await _dbContext.Set<RefreshToken>()
+                    .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > DateTime.UtcNow)
+                    .ToListAsync();
+
+                if (activeTokens.Count == 0)
+                {
+                    await transaction.CommitAsync();
+                    return Result.Success();
+                }
+
+                foreach (var token in activeTokens)
+                    token.RevokedAt = DateTime.UtcNow;
+
+                await _dbContext.SaveChangesAsync();
+
+                var jwtTokens = activeTokens
+                    .Select(t => t.JwtToken)
+                    .Where(j => !string.IsNullOrEmpty(j));
+
+                var ttl = TimeSpan.FromMinutes(_jwtSettings.AccessTokenExpirationMinutes);
+                await _redisCacheService.BlacklistJwtTokensAsync(jwtTokens, ttl);
+
+                await transaction.CommitAsync();
+                return Result.Success();
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to invalidate sessions for user {UserId}", userId);
+                return Result.Failure("Failed to invalidate sessions.");
+            }
         }
 
         #endregion
