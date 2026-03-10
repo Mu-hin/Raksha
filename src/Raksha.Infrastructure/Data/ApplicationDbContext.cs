@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Raksha.Domain.Common;
+using Raksha.Infrastructure.Data.Seeds;
 using Raksha.Infrastructure.Identity;
 using System.Reflection;
 
@@ -24,6 +25,8 @@ namespace Raksha.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+
+            builder.Entity<ApplicationRole>().HasData(new ApplicationRoleSeed().ApplicationRoles);
             builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         }
 
