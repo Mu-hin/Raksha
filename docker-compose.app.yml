@@ -64,6 +64,8 @@ services:
       ConnectionStrings__PostgreConnectionString: "Host=postgres;Port=5432;Database=auth-demo;Username=admin;Password=123at#"
       ConnectionStrings__MongoDBConnectionString: "mongodb://admin:123at%23@mongodb:27017/auth-demo?authSource=admin"
       ConnectionStrings__RedisConnectionString: "redis:6379,password=123at#"
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy

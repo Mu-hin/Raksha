@@ -6,6 +6,7 @@ using Raksha.Api.Middleware;
 using Raksha.Infrastructure;
 using Raksha.Infrastructure.Data;
 using Raksha.Infrastructure.Data.Seeds;
+using Serilog;
 
 namespace Raksha.Api
 {
@@ -55,6 +56,9 @@ namespace Raksha.Api
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
             builder.Services.AddProblemDetails();
 
+            builder.Host.UseSerilog((context, configuration) =>
+                configuration.ReadFrom.Configuration(context.Configuration));
+
             var app = builder.Build();
 
             // Seed roles and admin user
@@ -68,6 +72,7 @@ namespace Raksha.Api
             }
 
             app.UseExceptionHandler();
+            app.UseSerilogRequestLogging();
 
             app.UseHttpsRedirection();
 
