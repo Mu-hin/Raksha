@@ -1,5 +1,6 @@
 
 
+using Raksha.Api.Endpoints;
 using Raksha.Api.Middleware;
 using Raksha.Infrastructure;
 using Raksha.Infrastructure.Data;
@@ -12,8 +13,6 @@ namespace Raksha.Api
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddControllers();
-            
             builder.Services.AddInfrastructure(builder.Configuration);
 
             // Add services to the container.
@@ -45,7 +44,8 @@ namespace Raksha.Api
             app.UseAuthentication();
             app.UseAuthorization();
 
-            app.MapControllers();
+            app.MapAuthEndpoints();
+            app.MapUserEndpoints();
 
             app.UseExceptionHandler();
 

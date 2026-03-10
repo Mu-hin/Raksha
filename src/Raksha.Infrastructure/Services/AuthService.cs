@@ -1,58 +1,62 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using Raksha.Application.DTOs.Auth;
 using Raksha.Application.Interfaces;
 using Raksha.Application.Models;
+using Raksha.Domain.Common;
 using Raksha.Domain.Entities;
 using Raksha.Infrastructure.Data;
 using Raksha.Infrastructure.Identity;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 
 namespace Raksha.Infrastructure.Services
 {
     public class AuthService : IAuthService
     {
-        private const string defaultRoleName = "User";
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ApplicationDbContext _dbContext;
         private readonly JwtSettings _jwtSettings;
+        private readonly ITokenService _tokenService;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            RoleManager<ApplicationRole> roleManager,
             ApplicationDbContext dbContext,
-            IOptions<JwtSettings> jwtSettings)
+            IOptions<JwtSettings> jwtSettings,
+            ITokenService tokenService,
+            ILogger<AuthService> logger)
         {
             _userManager = userManager;
             _signInManager = signInManager;
-            _roleManager = roleManager;
             _dbContext = dbContext;
             _jwtSettings = jwtSettings.Value;
+            _tokenService = tokenService;
+            _logger = logger;
         }
 
-        public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
+        public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request)
         {
-            // Check if user already exists
-            var existingUser = await _userManager.FindByEmailAsync(request.Email);
+            // Single query to check both email and username
+            var normalizedEmail = _userManager.NormalizeEmail(request.Email);
+            var normalizedUserName = _userManager.NormalizeName(request.UserName);
+
+            var existingUser = await _userManager.Users
+                .Where(u => u.NormalizedEmail == normalizedEmail
+                          || u.NormalizedUserName == normalizedUserName)
+                .Select(u => new { u.NormalizedEmail, u.NormalizedUserName })
+                .FirstOrDefaultAsync();
+
             if (existingUser != null)
             {
-                throw new InvalidOperationException("User with this email already exists.");
+                return existingUser.NormalizedEmail == normalizedEmail
+                    ? Result<AuthResponse>.Failure("User with this email already exists.")
+                    : Result<AuthResponse>.Failure("User with this username already exists.");
             }
 
-            var existingUserName = await _userManager.FindByNameAsync(request.UserName);
-            if (existingUserName != null)
-            {
-                throw new InvalidOperationException("User with this username already exists.");
-            }
-
-            // Create new user
             var user = new ApplicationUser
             {
                 Email = request.Email,
@@ -70,58 +74,64 @@ namespace Raksha.Infrastructure.Services
             if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                throw new InvalidOperationException($"Failed to create user: {errors}");
+                return Result<AuthResponse>.Failure($"Failed to create user: {errors}");
             }
 
-            //assign to default role
-            var defaultRole = await _roleManager.FindByNameAsync(defaultRoleName) ?? throw new InvalidOperationException("Default role not found");
-            await _userManager.AddToRolesAsync(user, new List<string> { defaultRole.Name });
+            // Assign default role — no need to look up the role entity
+            await _userManager.AddToRoleAsync(user, Roles.User);
+            var roles = new List<string> { Roles.User };
 
-            // Generate tokens
-            var roles = await _userManager.GetRolesAsync(user);
-            var accessToken = GenerateAccessToken(user, roles.ToList());
-            var refreshToken = await GenerateRefreshTokenAsync(user);
+            var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
+            var refreshToken = CreateRefreshToken(user.Id);
 
-            return new AuthResponse
+            user.RefreshTokens.Add(refreshToken);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("User {UserId} registered with email {Email}", user.Id, user.Email);
+
+            return Result<AuthResponse>.Success(new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email!,
                 UserName = user.UserName!,
-                Roles = roles.ToList(),
+                Roles = roles,
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
-            };
+            }, "Registration successful.");
         }
 
-        public async Task<AuthResponse> LoginAsync(LoginRequest request)
+        public async Task<Result<AuthResponse>> LoginAsync(LoginRequest request)
         {
-            // Find user by email
             var user = await _userManager.FindByEmailAsync(request.Email);
             if (user == null)
             {
-                throw new InvalidOperationException("Invalid email or password.");
+                _logger.LogWarning("Failed login attempt for email {Email}", request.Email);
+                return Result<AuthResponse>.Failure("Invalid email or password.");
             }
 
-            // Check password
             var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
 
             if (result.IsLockedOut)
-            {
-                throw new InvalidOperationException("Account is locked out. Please try again later.");
-            }
+                return Result<AuthResponse>.Failure("Account is locked out. Please try again later.");
 
             if (!result.Succeeded)
             {
-                throw new InvalidOperationException("Invalid email or password.");
+                _logger.LogWarning("Failed login attempt for email {Email}", request.Email);
+                return Result<AuthResponse>.Failure("Invalid email or password.");
             }
 
-            // Generate tokens
             var roles = await _userManager.GetRolesAsync(user);
-            var accessToken = GenerateAccessToken(user, roles.ToList());
-            var refreshToken = await GenerateRefreshTokenAsync(user);
+            var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
+            var refreshToken = CreateRefreshToken(user.Id);
 
-            return new AuthResponse
+            user.RefreshTokens ??= new List<RefreshToken>();
+            user.RefreshTokens.Add(refreshToken);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("User {UserId} logged in", user.Id);
+
+            return Result<AuthResponse>.Success(new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email!,
@@ -130,62 +140,53 @@ namespace Raksha.Infrastructure.Services
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
-            };
+            }, "Login successful.");
         }
 
-        public async Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request)
+        public async Task<Result<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request)
         {
-            // Validate the expired access token (without validating lifetime)
-            var principal = GetPrincipalFromExpiredToken(request.AccessToken);
+            var principal = _tokenService.GetPrincipalFromExpiredToken(request.AccessToken);
             if (principal == null)
-            {
-                throw new InvalidOperationException("Invalid access token.");
-            }
+                return Result<AuthResponse>.Failure("Invalid access token.");
 
-            // Get user id from claims
             var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Result<AuthResponse>.Failure("Invalid access token.");
+
+            // Query specific token directly — avoids loading ALL user tokens
+            var existingToken = await _dbContext.Set<RefreshToken>()
+                .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken && rt.UserId == userId);
+
+            if (existingToken == null)
+                return Result<AuthResponse>.Failure("Invalid refresh token.");
+
+            if (!existingToken.IsActive)
             {
-                throw new InvalidOperationException("Invalid access token.");
+                _logger.LogWarning("Attempted to use revoked/expired refresh token for user {UserId}", userId);
+                return Result<AuthResponse>.Failure("Refresh token is expired or revoked.");
             }
 
-            // Find user
-            var user = await _userManager.Users
-                .Include(u => u.RefreshTokens)
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
+            var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null)
-            {
-                throw new InvalidOperationException("User not found.");
-            }
+                return Result<AuthResponse>.Failure("User not found.");
 
-            // Find the refresh token (using GUID)
-            var refreshToken = user.RefreshTokens
-                .FirstOrDefault(rt => rt.Token == request.RefreshToken);
-
-            if (refreshToken == null)
-            {
-                throw new InvalidOperationException("Invalid refresh token.");
-            }
-
-            if (!refreshToken.IsActive)
-            {
-                throw new InvalidOperationException("Refresh token is expired or revoked.");
-            }
-
-            // Revoke the old refresh token
-            refreshToken.RevokedAt = DateTime.UtcNow;
+            // Revoke old token
+            existingToken.RevokedAt = DateTime.UtcNow;
 
             // Generate new tokens
             var roles = await _userManager.GetRolesAsync(user);
-            var newAccessToken = GenerateAccessToken(user, roles.ToList());
-            var newRefreshToken = await GenerateRefreshTokenAsync(user);
+            var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
+            var newRefreshToken = CreateRefreshToken(user.Id);
 
-            // Link old token to new token for audit trail
-            refreshToken.ReplacedByToken = newRefreshToken.Token;
+            // Link old token to new for audit trail
+            existingToken.ReplacedByToken = newRefreshToken.Token;
+
+            _dbContext.Set<RefreshToken>().Add(newRefreshToken);
             await _dbContext.SaveChangesAsync();
 
-            return new AuthResponse
+            _logger.LogInformation("Refresh token rotated for user {UserId}", userId);
+
+            return Result<AuthResponse>.Success(new AuthResponse
             {
                 UserId = user.Id,
                 Email = user.Email!,
@@ -194,114 +195,40 @@ namespace Raksha.Infrastructure.Services
                 AccessToken = newAccessToken,
                 RefreshToken = newRefreshToken.Token,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes)
-            };
+            }, "Token refreshed successfully.");
         }
 
-        public async Task<bool> RevokeTokenAsync(string refreshToken)
+        public async Task<Result> RevokeTokenAsync(string refreshToken)
         {
-            // Find the refresh token across all users
             var token = await _dbContext.Set<RefreshToken>()
                 .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
 
             if (token == null)
-            {
-                return false;
-            }
+                return Result.Failure("Invalid or already revoked token.");
 
             if (!token.IsActive)
-            {
-                return false;
-            }
+                return Result.Failure("Invalid or already revoked token.");
 
-            // Revoke the token
             token.RevokedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            return true;
+            _logger.LogInformation("Refresh token revoked for user {UserId}", token.UserId);
+
+            return Result.Success("Token revoked successfully.");
         }
 
         #region Private Helper Methods
 
-        private string GenerateAccessToken(ApplicationUser user, List<string> roles)
+        private RefreshToken CreateRefreshToken(Guid userId, string? ipAddress = null)
         {
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-                new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            // Add role claims
-            foreach (var role in roles)
-            {
-                claims.Add(new Claim(ClaimTypes.Role, role));
-            }
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
-            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: _jwtSettings.Issuer,
-                audience: _jwtSettings.Audience,
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
-                signingCredentials: credentials
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-        private async Task<RefreshToken> GenerateRefreshTokenAsync(ApplicationUser user, string? ipAddress = null)
-        {
-            // Generate a GUID-based refresh token
-            var refreshToken = new RefreshToken
+            return new RefreshToken
             {
                 Id = Guid.NewGuid(),
-                UserId = user.Id,
-                Token = Guid.NewGuid().ToString(), // Using GUID instead of base64 string
+                UserId = userId,
+                Token = _tokenService.GenerateRefreshToken(),
                 ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
                 CreatedByIp = ipAddress
             };
-
-            // Add to user's refresh tokens
-            user.RefreshTokens.Add(refreshToken);
-            await _dbContext.SaveChangesAsync();
-
-            return refreshToken;
-        }
-
-        private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
-        {
-            var tokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = false, // Don't validate lifetime for expired tokens
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = _jwtSettings.Issuer,
-                ValidAudience = _jwtSettings.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret)),
-                ClockSkew = TimeSpan.Zero
-            };
-
-            try
-            {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
-
-                if (securityToken is not JwtSecurityToken jwtSecurityToken ||
-                    !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
-                {
-                    return null;
-                }
-
-                return principal;
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         #endregion

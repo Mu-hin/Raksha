@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
+using Raksha.Application.Models;
 
 namespace Raksha.Api.Middleware
 {
@@ -18,18 +18,12 @@ namespace Raksha.Api.Middleware
             CancellationToken cancellationToken)
         {
             _logger.LogError(
-                exception, "Exception occurred: {Message}", exception.Message);
+                exception, "Unhandled exception: {Message}", exception.Message);
 
-            var problemDetails = new ProblemDetails
-            {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "Server error"
-            };
+            httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
-            httpContext.Response.StatusCode = problemDetails.Status.Value;
-
-            await httpContext.Response
-                .WriteAsJsonAsync(problemDetails, cancellationToken);
+            await httpContext.Response.WriteAsJsonAsync(
+                Result.Failure("An unexpected error occurred."), cancellationToken);
 
             return true;
         }
