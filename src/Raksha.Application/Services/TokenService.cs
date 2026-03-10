@@ -98,7 +98,7 @@ namespace Raksha.Application.Services
 
         #region JWT Blacklist Operations
 
-        public async Task BlacklistTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl)
+        public async Task BlacklistTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl, CancellationToken ct = default)
         {
             var keys = jwtTokens
                 .Select(token => $"{BlacklistPrefix}{HashJwt(token)}")
@@ -108,13 +108,13 @@ namespace Raksha.Application.Services
                 return;
 
             var ttlSeconds = ((int)ttl.TotalSeconds).ToString();
-            await _redisCacheService.ExecuteLuaScriptAsync(BlacklistLuaScript, keys, new[] { ttlSeconds });
+            await _redisCacheService.ExecuteLuaScriptAsync(BlacklistLuaScript, keys, new[] { ttlSeconds }, ct);
         }
 
-        public async Task<bool> IsTokenBlacklistedAsync(string jwtToken)
+        public async Task<bool> IsTokenBlacklistedAsync(string jwtToken, CancellationToken ct = default)
         {
             var key = $"{BlacklistPrefix}{HashJwt(jwtToken)}";
-            return await _redisCacheService.ExistsAsync(key);
+            return await _redisCacheService.ExistsAsync(key, ct);
         }
 
         private static string HashJwt(string jwt)

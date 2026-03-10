@@ -4,6 +4,6 @@ namespace Raksha.Application.Interfaces.Services
 {
     public interface ISessionService
     {
-        Task<Result> InvalidateAllSessionsAsync(Guid userId);
+        Task<Result> InvalidateAllSessionsAsync(Guid userId, CancellationToken ct = default);
     }
 }

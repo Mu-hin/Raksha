@@ -27,13 +27,13 @@ namespace Raksha.Infrastructure.Repositories
             if (isActive != null)
             {
                 if (isActive.Value)
-                    queryable = queryable.Where(x => x.Status == (int)EntityStatus.Active);
+                    queryable = queryable.Where(x => x.Status == EntityStatus.Active);
                 else
-                    queryable = queryable.Where(x => x.Status == (int)EntityStatus.Inactive);
+                    queryable = queryable.Where(x => x.Status == EntityStatus.Inactive);
             }
 
             if (!withDeleted)
-                queryable = queryable.Where(x => x.Status != (int)EntityStatus.Deleted);
+                queryable = queryable.Where(x => x.Status != EntityStatus.Deleted);
 
             return queryable;
         }
@@ -179,7 +179,7 @@ namespace Raksha.Infrastructure.Repositories
         {
             var filter = Builders<TEntity>.Filter.Eq(e => e.Id, id);
             var update = Builders<TEntity>.Update
-                .Set(e => e.Status, (int)EntityStatus.Deleted);
+                .Set(e => e.Status, EntityStatus.Deleted);
 
             await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
         }
@@ -188,7 +188,7 @@ namespace Raksha.Infrastructure.Repositories
         {
             var filter = Builders<TEntity>.Filter.Where(predicate);
             var update = Builders<TEntity>.Update
-                .Set(e => e.Status, (int)EntityStatus.Deleted);
+                .Set(e => e.Status, EntityStatus.Deleted);
 
             await _collection.UpdateManyAsync(filter, update, cancellationToken: cancellationToken);
         }
@@ -212,15 +212,15 @@ namespace Raksha.Infrastructure.Repositories
             {
                 if (isActive.Value)
                     filter &= Builders<TEntity>.Filter
-                        .Eq(x => x.Status, (int)EntityStatus.Active);
+                        .Eq(x => x.Status, EntityStatus.Active);
                 else
                     filter &= Builders<TEntity>.Filter
-                        .Eq(x => x.Status, (int)EntityStatus.Inactive);
+                        .Eq(x => x.Status, EntityStatus.Inactive);
             }
 
             if (!withDeleted)
                 filter &= Builders<TEntity>.Filter
-                    .Ne(x => x.Status, (int)EntityStatus.Deleted);
+                    .Ne(x => x.Status, EntityStatus.Deleted);
 
             return filter;
         }

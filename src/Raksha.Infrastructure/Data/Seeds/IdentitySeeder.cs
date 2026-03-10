@@ -63,7 +63,7 @@ namespace Raksha.Infrastructure.Data.Seeds
                 Email = adminEmail,
                 UserName = "admin",
                 EmailConfirmed = true,
-                Status = (int)EntityStatus.Active,
+                Status = EntityStatus.Active,
                 UserDetails = new UserDetails
                 {
                     FirstName = "System",

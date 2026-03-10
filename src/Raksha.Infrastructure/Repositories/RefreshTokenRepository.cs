@@ -12,21 +12,21 @@ namespace Raksha.Infrastructure.Repositories
         {
         }
 
-        public async Task<RefreshToken?> GetActiveByTokenAsync(string token, Guid userId)
+        public async Task<RefreshToken?> GetActiveByTokenAsync(string token, Guid userId, CancellationToken ct = default)
         {
-            return await _dbSet.FirstOrDefaultAsync(rt => rt.Token == token && rt.UserId == userId);
+            return await _dbSet.FirstOrDefaultAsync(rt => rt.Token == token && rt.UserId == userId, ct);
         }
 
-        public async Task<RefreshToken?> GetByTokenAsync(string token)
+        public async Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct = default)
         {
-            return await _dbSet.FirstOrDefaultAsync(rt => rt.Token == token);
+            return await _dbSet.FirstOrDefaultAsync(rt => rt.Token == token, ct);
         }
 
-        public async Task<List<RefreshToken>> GetActiveByUserIdAsync(Guid userId)
+        public async Task<List<RefreshToken>> GetActiveByUserIdAsync(Guid userId, CancellationToken ct = default)
         {
             return await _dbSet
                 .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > DateTime.UtcNow)
-                .ToListAsync();
+                .ToListAsync(ct);
         }
     }
 }

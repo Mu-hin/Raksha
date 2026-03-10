@@ -20,7 +20,7 @@ namespace Raksha.Application.Services
             _logger = logger;
         }
 
-        public async Task LogAsync(Guid userId, string userEmail, string action, string details)
+        public async Task LogAsync(Guid userId, string userEmail, string action, string details, CancellationToken ct = default)
         {
             var auditLog = new AuditLog
             {
@@ -32,16 +32,16 @@ namespace Raksha.Application.Services
                 Timestamp = DateTime.UtcNow
             };
 
-            await _auditRepository.AddAsync(auditLog);
+            await _auditRepository.AddAsync(auditLog, ct);
             _logger.LogInformation("Audit log created: {Action} for user {UserId}", action, userId);
         }
 
-        public async Task<Result<PagedResult<AuditLogResponse>>> GetPasswordChangeHistoryAsync(AuditFilterRequest filter)
+        public async Task<Result<PagedResult<AuditLogResponse>>> GetPasswordChangeHistoryAsync(AuditFilterRequest filter, CancellationToken ct = default)
         {
             return await GetAuditLogsAsync("PasswordChange", filter);
         }
 
-        public async Task<Result<PagedResult<AuditLogResponse>>> GetProfileUpdateHistoryAsync(AuditFilterRequest filter)
+        public async Task<Result<PagedResult<AuditLogResponse>>> GetProfileUpdateHistoryAsync(AuditFilterRequest filter, CancellationToken ct = default)
         {
             return await GetAuditLogsAsync("ProfileUpdate", filter);
         }

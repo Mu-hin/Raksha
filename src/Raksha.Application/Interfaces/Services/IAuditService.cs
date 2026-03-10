@@ -5,8 +5,8 @@ namespace Raksha.Application.Interfaces.Services
 {
     public interface IAuditService
     {
-        Task LogAsync(Guid userId, string userEmail, string action, string details);
-        Task<Result<PagedResult<AuditLogResponse>>> GetPasswordChangeHistoryAsync(AuditFilterRequest filter);
-        Task<Result<PagedResult<AuditLogResponse>>> GetProfileUpdateHistoryAsync(AuditFilterRequest filter);
+        Task LogAsync(Guid userId, string userEmail, string action, string details, CancellationToken ct = default);
+        Task<Result<PagedResult<AuditLogResponse>>> GetPasswordChangeHistoryAsync(AuditFilterRequest filter, CancellationToken ct = default);
+        Task<Result<PagedResult<AuditLogResponse>>> GetProfileUpdateHistoryAsync(AuditFilterRequest filter, CancellationToken ct = default);
     }
 }

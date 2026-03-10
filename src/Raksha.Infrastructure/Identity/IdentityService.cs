@@ -27,7 +27,7 @@ namespace Raksha.Infrastructure.Identity
 
         #region User Lookup
 
-        public async Task<IdentityUserDto?> FindByIdAsync(Guid userId)
+        public async Task<IdentityUserDto?> FindByIdAsync(Guid userId, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return null;
@@ -36,7 +36,7 @@ namespace Raksha.Infrastructure.Identity
             return MapToDto(user, roles);
         }
 
-        public async Task<IdentityUserDto?> FindByEmailAsync(string email)
+        public async Task<IdentityUserDto?> FindByEmailAsync(string email, CancellationToken ct = default)
         {
             var user = await _userManager.FindByEmailAsync(email);
             if (user == null) return null;
@@ -45,11 +45,11 @@ namespace Raksha.Infrastructure.Identity
             return MapToDto(user, roles);
         }
 
-        public async Task<IdentityUserDto?> FindByIdWithDetailsAsync(Guid userId)
+        public async Task<IdentityUserDto?> FindByIdWithDetailsAsync(Guid userId, CancellationToken ct = default)
         {
             var user = await _userManager.Users
                 .Include(u => u.UserDetails)
-                .FirstOrDefaultAsync(u => u.Id == userId);
+                .FirstOrDefaultAsync(u => u.Id == userId, ct);
 
             if (user == null) return null;
 
@@ -61,7 +61,7 @@ namespace Raksha.Infrastructure.Identity
 
         #region User Creation
 
-        public async Task<Result<IdentityUserDto>> CreateUserAsync(string email, string userName, string password, string firstName, string? lastName)
+        public async Task<Result<IdentityUserDto>> CreateUserAsync(string email, string userName, string password, string firstName, string? lastName, CancellationToken ct = default)
         {
             var user = new ApplicationUser
             {
@@ -90,7 +90,7 @@ namespace Raksha.Infrastructure.Identity
 
         #region Password Operations
 
-        public async Task<Result> CheckPasswordSignInAsync(Guid userId, string password)
+        public async Task<Result> CheckPasswordSignInAsync(Guid userId, string password, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return Result.Failure("User not found.");
@@ -106,7 +106,7 @@ namespace Raksha.Infrastructure.Identity
             return Result.Success();
         }
 
-        public async Task<Result> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+        public async Task<Result> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return Result.Failure("User not found.");
@@ -125,7 +125,7 @@ namespace Raksha.Infrastructure.Identity
 
         #region Role Operations
 
-        public async Task<IList<string>> GetRolesAsync(Guid userId)
+        public async Task<IList<string>> GetRolesAsync(Guid userId, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return new List<string>();
@@ -133,7 +133,7 @@ namespace Raksha.Infrastructure.Identity
             return await _userManager.GetRolesAsync(user);
         }
 
-        public async Task<Result> AddToRoleAsync(Guid userId, string role)
+        public async Task<Result> AddToRoleAsync(Guid userId, string role, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return Result.Failure("User not found.");
@@ -148,7 +148,7 @@ namespace Raksha.Infrastructure.Identity
             return Result.Success();
         }
 
-        public async Task<Result> RemoveFromRoleAsync(Guid userId, string role)
+        public async Task<Result> RemoveFromRoleAsync(Guid userId, string role, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return Result.Failure("User not found.");
@@ -163,7 +163,7 @@ namespace Raksha.Infrastructure.Identity
             return Result.Success();
         }
 
-        public async Task<bool> IsInRoleAsync(Guid userId, string role)
+        public async Task<bool> IsInRoleAsync(Guid userId, string role, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return false;
@@ -171,17 +171,17 @@ namespace Raksha.Infrastructure.Identity
             return await _userManager.IsInRoleAsync(user, role);
         }
 
-        public async Task<bool> RoleExistsAsync(string role)
+        public async Task<bool> RoleExistsAsync(string role, CancellationToken ct = default)
         {
             return await _dbContext.Roles
-                .AnyAsync(r => r.NormalizedName == role.ToUpperInvariant());
+                .AnyAsync(r => r.NormalizedName == role.ToUpperInvariant(), ct);
         }
 
         #endregion
 
         #region User Updates
 
-        public async Task<Result> UpdateUserStatusAsync(Guid userId, int status)
+        public async Task<Result> UpdateUserStatusAsync(Guid userId, EntityStatus status, CancellationToken ct = default)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return Result.Failure("User not found.");
@@ -192,11 +192,11 @@ namespace Raksha.Infrastructure.Identity
             return Result.Success();
         }
 
-        public async Task<Result> UpdateProfileAsync(Guid userId, string firstName, string? lastName, string? imageKey)
+        public async Task<Result> UpdateProfileAsync(Guid userId, string firstName, string? lastName, string? imageKey, CancellationToken ct = default)
         {
             var user = await _userManager.Users
                 .Include(u => u.UserDetails)
-                .FirstOrDefaultAsync(u => u.Id == userId);
+                .FirstOrDefaultAsync(u => u.Id == userId, ct);
 
             if (user == null) return Result.Failure("User not found.");
 
@@ -204,7 +204,7 @@ namespace Raksha.Infrastructure.Identity
             user.UserDetails.LastName = lastName ?? string.Empty;
             user.UserDetails.ImageKey = imageKey;
 
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(ct);
 
             return Result.Success();
         }
@@ -213,7 +213,7 @@ namespace Raksha.Infrastructure.Identity
 
         #region Duplicate Checks
 
-        public async Task<DuplicateCheckResult?> CheckDuplicateAsync(string email, string userName)
+        public async Task<DuplicateCheckResult?> CheckDuplicateAsync(string email, string userName, CancellationToken ct = default)
         {
             var normalizedEmail = _userManager.NormalizeEmail(email);
             var normalizedUserName = _userManager.NormalizeName(userName);
@@ -222,7 +222,7 @@ namespace Raksha.Infrastructure.Identity
                 .Where(u => u.NormalizedEmail == normalizedEmail
                           || u.NormalizedUserName == normalizedUserName)
                 .Select(u => new { u.NormalizedEmail, u.NormalizedUserName })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             if (existingUser == null) return null;
 
@@ -238,7 +238,7 @@ namespace Raksha.Infrastructure.Identity
         #region Query
 
         public async Task<(List<IdentityUserDto> Users, int TotalCount)> GetFilteredUsersAsync(
-            string? searchTerm, int? status, string? role, int page, int pageSize)
+            string? searchTerm, EntityStatus? status, string? role, int page, int pageSize, CancellationToken ct = default)
         {
             var query = _userManager.Users
                 .Include(u => u.UserDetails)
@@ -248,7 +248,7 @@ namespace Raksha.Infrastructure.Identity
             if (status.HasValue)
                 query = query.Where(u => u.Status == status.Value);
             else
-                query = query.Where(u => u.Status != (int)EntityStatus.Deleted);
+                query = query.Where(u => u.Status != EntityStatus.Deleted);
 
             // Filter by search term
             if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -264,7 +264,7 @@ namespace Raksha.Infrastructure.Identity
             if (!string.IsNullOrWhiteSpace(role))
             {
                 var roleEntity = await _dbContext.Roles
-                    .FirstOrDefaultAsync(r => r.NormalizedName == role.ToUpperInvariant());
+                    .FirstOrDefaultAsync(r => r.NormalizedName == role.ToUpperInvariant(), ct);
 
                 if (roleEntity != null)
                 {
@@ -276,21 +276,32 @@ namespace Raksha.Infrastructure.Identity
                 }
             }
 
-            var totalCount = await query.CountAsync();
+            var totalCount = await query.CountAsync(ct);
 
             var users = await query
                 .OrderBy(u => u.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .ToListAsync();
+                .ToListAsync(ct);
 
-            // Load roles for each user
-            var userDtos = new List<IdentityUserDto>();
-            foreach (var user in users)
-            {
-                var roles = await _userManager.GetRolesAsync(user);
-                userDtos.Add(MapToDto(user, roles));
-            }
+            // Batch-load roles in a single query instead of N+1
+            var userIds = users.Select(u => u.Id).ToList();
+
+            var userRoles = await _dbContext.UserRoles
+                .Where(ur => userIds.Contains(ur.UserId))
+                .Join(_dbContext.Roles,
+                    ur => ur.RoleId,
+                    r => r.Id,
+                    (ur, r) => new { ur.UserId, RoleName = r.Name! })
+                .ToListAsync(ct);
+
+            var rolesByUser = userRoles
+                .GroupBy(x => x.UserId)
+                .ToDictionary(g => g.Key, g => (IList<string>)g.Select(x => x.RoleName).ToList());
+
+            var userDtos = users.Select(user =>
+                MapToDto(user, rolesByUser.GetValueOrDefault(user.Id, (IList<string>)new List<string>()))
+            ).ToList();
 
             return (userDtos, totalCount);
         }

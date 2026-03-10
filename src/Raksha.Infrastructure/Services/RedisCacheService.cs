@@ -15,13 +15,13 @@ namespace Raksha.Infrastructure.Services
 
         #region Key-Value Operations
 
-        public async Task<string?> GetAsync(string key)
+        public async Task<string?> GetAsync(string key, CancellationToken ct = default)
         {
             var value = await _database.StringGetAsync(key);
             return value.HasValue ? value.ToString() : null;
         }
 
-        public async Task<T?> GetAsync<T>(string key)
+        public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
         {
             var value = await _database.StringGetAsync(key);
             if (!value.HasValue)
@@ -30,18 +30,18 @@ namespace Raksha.Infrastructure.Services
             return JsonSerializer.Deserialize<T>(value!);
         }
 
-        public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null)
+        public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default)
         {
             var serialized = JsonSerializer.Serialize(value);
             await _database.StringSetAsync(key, serialized, expiry);
         }
 
-        public async Task RemoveAsync(string key)
+        public async Task RemoveAsync(string key, CancellationToken ct = default)
         {
             await _database.KeyDeleteAsync(key);
         }
 
-        public async Task<bool> ExistsAsync(string key)
+        public async Task<bool> ExistsAsync(string key, CancellationToken ct = default)
         {
             return await _database.KeyExistsAsync(key);
         }
@@ -50,18 +50,18 @@ namespace Raksha.Infrastructure.Services
 
         #region HashSet Operations
 
-        public async Task HashSetAsync(string hashKey, string field, string value)
+        public async Task HashSetAsync(string hashKey, string field, string value, CancellationToken ct = default)
         {
             await _database.HashSetAsync(hashKey, field, value);
         }
 
-        public async Task<string?> HashGetAsync(string hashKey, string field)
+        public async Task<string?> HashGetAsync(string hashKey, string field, CancellationToken ct = default)
         {
             var value = await _database.HashGetAsync(hashKey, field);
             return value.HasValue ? value.ToString() : null;
         }
 
-        public async Task<Dictionary<string, string>> HashGetAllAsync(string hashKey)
+        public async Task<Dictionary<string, string>> HashGetAllAsync(string hashKey, CancellationToken ct = default)
         {
             var entries = await _database.HashGetAllAsync(hashKey);
             return entries.ToDictionary(
@@ -69,12 +69,12 @@ namespace Raksha.Infrastructure.Services
                 e => e.Value.ToString());
         }
 
-        public async Task<bool> HashRemoveAsync(string hashKey, string field)
+        public async Task<bool> HashRemoveAsync(string hashKey, string field, CancellationToken ct = default)
         {
             return await _database.HashDeleteAsync(hashKey, field);
         }
 
-        public async Task<bool> HashExistsAsync(string hashKey, string field)
+        public async Task<bool> HashExistsAsync(string hashKey, string field, CancellationToken ct = default)
         {
             return await _database.HashExistsAsync(hashKey, field);
         }
@@ -83,7 +83,7 @@ namespace Raksha.Infrastructure.Services
 
         #region Lua Script Execution
 
-        public async Task<long> ExecuteLuaScriptAsync(string script, string[] keys, string[] values)
+        public async Task<long> ExecuteLuaScriptAsync(string script, string[] keys, string[] values, CancellationToken ct = default)
         {
             var redisKeys = keys.Select(k => (RedisKey)k).ToArray();
             var redisValues = values.Select(v => (RedisValue)v).ToArray();

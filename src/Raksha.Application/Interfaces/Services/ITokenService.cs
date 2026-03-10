@@ -9,7 +9,7 @@ namespace Raksha.Application.Interfaces.Services
         ClaimsPrincipal? GetPrincipalFromExpiredToken(string token);
 
         // JWT Blacklist operations
-        Task BlacklistTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl);
-        Task<bool> IsTokenBlacklistedAsync(string jwtToken);
+        Task BlacklistTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl, CancellationToken ct = default);
+        Task<bool> IsTokenBlacklistedAsync(string jwtToken, CancellationToken ct = default);
     }
 }

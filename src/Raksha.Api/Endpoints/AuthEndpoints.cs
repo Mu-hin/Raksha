@@ -11,9 +11,9 @@ namespace Raksha.Api.Endpoints
         {
             var group = app.MapGroup("api/auth").WithTags("Auth");
 
-            group.MapPost("register", async (RegisterRequest request, IAuthService authService) =>
+            group.MapPost("register", async (RegisterRequest request, IAuthService authService, CancellationToken cancellationToken) =>
             {
-                var result = await authService.RegisterAsync(request);
+                var result = await authService.RegisterAsync(request, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.BadRequest(result);
@@ -23,9 +23,9 @@ namespace Raksha.Api.Endpoints
             .WithName("Register")
             .AllowAnonymous();
 
-            group.MapPost("login", async (LoginRequest request, IAuthService authService) =>
+            group.MapPost("login", async (LoginRequest request, IAuthService authService, CancellationToken cancellationToken) =>
             {
-                var result = await authService.LoginAsync(request);
+                var result = await authService.LoginAsync(request, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.Json(result, statusCode: StatusCodes.Status401Unauthorized);
@@ -35,9 +35,9 @@ namespace Raksha.Api.Endpoints
             .WithName("Login")
             .AllowAnonymous();
 
-            group.MapPost("refresh-token", async (RefreshTokenRequest request, IAuthService authService) =>
+            group.MapPost("refresh-token", async (RefreshTokenRequest request, IAuthService authService, CancellationToken cancellationToken) =>
             {
-                var result = await authService.RefreshTokenAsync(request);
+                var result = await authService.RefreshTokenAsync(request, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.Json(result, statusCode: StatusCodes.Status401Unauthorized);
@@ -47,9 +47,9 @@ namespace Raksha.Api.Endpoints
             .WithName("RefreshToken")
             .AllowAnonymous();
 
-            group.MapPost("revoke-token", async (RevokeTokenRequest request, IAuthService authService) =>
+            group.MapPost("revoke-token", async (RevokeTokenRequest request, IAuthService authService, CancellationToken cancellationToken) =>
             {
-                var result = await authService.RevokeTokenAsync(request.RefreshToken);
+                var result = await authService.RevokeTokenAsync(request.RefreshToken, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.BadRequest(result);
@@ -59,13 +59,13 @@ namespace Raksha.Api.Endpoints
             .WithName("RevokeToken")
             .RequireAuthorization();
 
-            group.MapPost("change-password", async (ChangePasswordRequest request, ClaimsPrincipal user, IAuthService authService) =>
+            group.MapPost("change-password", async (ChangePasswordRequest request, ClaimsPrincipal user, IAuthService authService, CancellationToken cancellationToken) =>
             {
                 var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var parsedUserId))
                     return Results.Json(Result.Failure("Invalid token."), statusCode: StatusCodes.Status401Unauthorized);
 
-                var result = await authService.ChangePasswordAsync(parsedUserId, request);
+                var result = await authService.ChangePasswordAsync(parsedUserId, request, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.BadRequest(result);

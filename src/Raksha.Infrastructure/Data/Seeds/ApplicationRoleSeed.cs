@@ -20,7 +20,7 @@ namespace Raksha.Infrastructure.Data.Seeds
                         CreatedBy = "System",
                         LastModifiedAt = DateTime.UtcNow,
                         LastModifiedBy = "System",
-                        Status = (int)EntityStatus.Active
+                        Status = EntityStatus.Active
                     },
                     new ApplicationRole
                     {
@@ -31,7 +31,7 @@ namespace Raksha.Infrastructure.Data.Seeds
                         CreatedBy = "System",
                         LastModifiedAt = DateTime.UtcNow,
                         LastModifiedBy = "System",
-                        Status = (int)EntityStatus.Active
+                        Status = EntityStatus.Active
                     }
                 };
             }

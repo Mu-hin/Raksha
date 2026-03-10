@@ -13,16 +13,16 @@ namespace Raksha.Api.Endpoints
                 .WithTags("Audit")
                 .RequireAuthorization(new AuthorizeAttribute { Roles = Roles.Admin });
 
-            group.MapGet("password-changes", async ([AsParameters] AuditFilterRequest filter, IAuditService auditService) =>
+            group.MapGet("password-changes", async ([AsParameters] AuditFilterRequest filter, IAuditService auditService, CancellationToken cancellationToken) =>
             {
-                var result = await auditService.GetPasswordChangeHistoryAsync(filter);
+                var result = await auditService.GetPasswordChangeHistoryAsync(filter, cancellationToken);
                 return Results.Ok(result);
             })
             .WithName("GetPasswordChangeHistory");
 
-            group.MapGet("profile-updates", async ([AsParameters] AuditFilterRequest filter, IAuditService auditService) =>
+            group.MapGet("profile-updates", async ([AsParameters] AuditFilterRequest filter, IAuditService auditService, CancellationToken cancellationToken) =>
             {
-                var result = await auditService.GetProfileUpdateHistoryAsync(filter);
+                var result = await auditService.GetProfileUpdateHistoryAsync(filter, cancellationToken);
                 return Results.Ok(result);
             })
             .WithName("GetProfileUpdateHistory");

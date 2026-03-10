@@ -13,13 +13,13 @@ namespace Raksha.Api.Endpoints
                 .WithTags("Profile")
                 .RequireAuthorization();
 
-            group.MapGet("", async (ClaimsPrincipal user, IUserService userService) =>
+            group.MapGet("", async (ClaimsPrincipal user, IUserService userService, CancellationToken cancellationToken) =>
             {
                 var userId = GetUserId(user);
                 if (userId == null)
                     return Results.Json(Result.Failure("Invalid token."), statusCode: StatusCodes.Status401Unauthorized);
 
-                var result = await userService.GetByIdAsync(userId.Value);
+                var result = await userService.GetByIdAsync(userId.Value, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.NotFound(result);
@@ -28,13 +28,13 @@ namespace Raksha.Api.Endpoints
             })
             .WithName("GetProfile");
 
-            group.MapPut("", async (UpdateUserProfileRequest request, ClaimsPrincipal user, IUserService userService) =>
+            group.MapPut("", async (UpdateUserProfileRequest request, ClaimsPrincipal user, IUserService userService, CancellationToken cancellationToken) =>
             {
                 var userId = GetUserId(user);
                 if (userId == null)
                     return Results.Json(Result.Failure("Invalid token."), statusCode: StatusCodes.Status401Unauthorized);
 
-                var result = await userService.UpdateProfileAsync(userId.Value, request);
+                var result = await userService.UpdateProfileAsync(userId.Value, request, cancellationToken);
 
                 if (!result.IsSuccess)
                     return Results.BadRequest(result);
@@ -43,14 +43,14 @@ namespace Raksha.Api.Endpoints
             })
             .WithName("UpdateProfile");
 
-            group.MapPost("picture", async (IFormFile file, ClaimsPrincipal user, IFileService fileService, IUserService userService) =>
+            group.MapPost("picture", async (IFormFile file, ClaimsPrincipal user, IFileService fileService, IUserService userService, CancellationToken cancellationToken) =>
             {
                 var userId = GetUserId(user);
                 if (userId == null)
                     return Results.Json(Result.Failure("Invalid token."), statusCode: StatusCodes.Status401Unauthorized);
 
                 using var stream = file.OpenReadStream();
-                var saveResult = await fileService.SaveProfilePictureAsync(userId.Value, stream, file.FileName);
+                var saveResult = await fileService.SaveProfilePictureAsync(userId.Value, stream, file.FileName, cancellationToken);
 
                 if (!saveResult.IsSuccess)
                     return Results.BadRequest(saveResult);
@@ -59,7 +59,7 @@ namespace Raksha.Api.Endpoints
                 var updateRequest = new UpdateUserProfileRequest { ImageKey = saveResult.Message };
 
                 // Get current profile to preserve other fields
-                var currentUser = await userService.GetByIdAsync(userId.Value);
+                var currentUser = await userService.GetByIdAsync(userId.Value, cancellationToken);
                 if (currentUser.IsSuccess && currentUser.Data != null)
                 {
                     updateRequest.FirstName = currentUser.Data.FirstName;
@@ -67,20 +67,20 @@ namespace Raksha.Api.Endpoints
                     updateRequest.ImageKey = saveResult.Message;
                 }
 
-                await userService.UpdateProfileAsync(userId.Value, updateRequest);
+                await userService.UpdateProfileAsync(userId.Value, updateRequest, cancellationToken);
 
                 return Results.Ok(Result.Success("Profile picture uploaded successfully."));
             })
             .WithName("UploadProfilePicture")
             .DisableAntiforgery();
 
-            group.MapGet("picture", async (ClaimsPrincipal user, IFileService fileService) =>
+            group.MapGet("picture", async (ClaimsPrincipal user, IFileService fileService, CancellationToken cancellationToken) =>
             {
                 var userId = GetUserId(user);
                 if (userId == null)
                     return Results.Json(Result.Failure("Invalid token."), statusCode: StatusCodes.Status401Unauthorized);
 
-                var fileResult = await fileService.GetProfilePictureAsync(userId.Value);
+                var fileResult = await fileService.GetProfilePictureAsync(userId.Value, cancellationToken);
 
                 if (fileResult == null)
                     return Results.NotFound(Result.Failure("Profile picture not found."));

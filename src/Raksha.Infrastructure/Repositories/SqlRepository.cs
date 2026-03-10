@@ -32,16 +32,16 @@ namespace Raksha.Infrastructure.Repositories
             if (isActive != null)
             {
                 if (isActive.Value)
-                    query = query.Where(x => x.Status == (int)EntityStatus.Active);
+                    query = query.Where(x => x.Status == EntityStatus.Active);
                 else
-                    query = query.Where(x => x.Status == (int)EntityStatus.Inactive);
+                    query = query.Where(x => x.Status == EntityStatus.Inactive);
             }
 
             if (isAsNoTracking)
                 query = query.AsNoTracking();
 
             if (!withDeleted)
-                query = query.Where(x => x.Status != (int)EntityStatus.Deleted);
+                query = query.Where(x => x.Status != EntityStatus.Deleted);
 
             return query;
         }
@@ -163,7 +163,7 @@ namespace Raksha.Infrastructure.Repositories
 
             if (entity is null) return;
 
-            entity.Status = (int)EntityStatus.Deleted;
+            entity.Status = EntityStatus.Deleted;
         }
 
         public async Task DeleteAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
@@ -174,7 +174,7 @@ namespace Raksha.Infrastructure.Repositories
 
             foreach (var entity in entities)
             {
-                entity.Status = (int)EntityStatus.Deleted;
+                entity.Status = EntityStatus.Deleted;
             }
         }
 

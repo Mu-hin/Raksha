@@ -5,15 +5,15 @@ namespace Raksha.Application.Interfaces.Services
 {
     public interface IUserService
     {
-        Task<Result<UserResponse>> GetByIdAsync(Guid userId);
-        Task<Result<PagedResult<UserResponse>>> GetAllAsync(UserFilterRequest filter);
-        Task<Result> UpdateProfileAsync(Guid userId, UpdateUserProfileRequest request);
-        Task<Result> ActivateAsync(Guid userId);
-        Task<Result> DeactivateAsync(Guid userId);
-        Task<Result> DeleteAsync(Guid userId);
-        Task<Result> AssignRoleAsync(Guid userId, string role);
-        Task<Result> RemoveRoleAsync(Guid userId, string role);
-        Task<Result<UserResponse>> CreateAsync(CreateUserRequest request);
-        Task<Result> ForceLogoutAsync(Guid userId);
+        Task<Result<UserResponse>> GetByIdAsync(Guid userId, CancellationToken ct = default);
+        Task<Result<PagedResult<UserResponse>>> GetAllAsync(UserFilterRequest filter, CancellationToken ct = default);
+        Task<Result> UpdateProfileAsync(Guid userId, UpdateUserProfileRequest request, CancellationToken ct = default);
+        Task<Result> ActivateAsync(Guid userId, CancellationToken ct = default);
+        Task<Result> DeactivateAsync(Guid userId, CancellationToken ct = default);
+        Task<Result> DeleteAsync(Guid userId, CancellationToken ct = default);
+        Task<Result> AssignRoleAsync(Guid userId, string role, CancellationToken ct = default);
+        Task<Result> RemoveRoleAsync(Guid userId, string role, CancellationToken ct = default);
+        Task<Result<UserResponse>> CreateAsync(CreateUserRequest request, CancellationToken ct = default);
+        Task<Result> ForceLogoutAsync(Guid userId, CancellationToken ct = default);
     }
 }

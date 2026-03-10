@@ -38,7 +38,7 @@ namespace Raksha.Application.Services
             _logger = logger;
         }
 
-        public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request)
+        public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
         {
             // Validation
             if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
@@ -54,7 +54,7 @@ namespace Raksha.Application.Services
                 return Result<AuthResponse>.Failure("First name is required.");
 
             // Duplicate check
-            var duplicate = await _identityService.CheckDuplicateAsync(request.Email, request.UserName);
+            var duplicate = await _identityService.CheckDuplicateAsync(request.Email, request.UserName, ct);
             if (duplicate != null)
             {
                 return duplicate.IsDuplicateEmail
@@ -64,7 +64,7 @@ namespace Raksha.Application.Services
 
             // Create user
             var createResult = await _identityService.CreateUserAsync(
-                request.Email, request.UserName, request.Password, request.FirstName, request.LastName);
+                request.Email, request.UserName, request.Password, request.FirstName, request.LastName, ct);
 
             if (!createResult.IsSuccess)
                 return Result<AuthResponse>.Failure(createResult.Message);
@@ -72,7 +72,7 @@ namespace Raksha.Application.Services
             var userDto = createResult.Data!;
 
             // Assign default role
-            var roleResult = await _identityService.AddToRoleAsync(userDto.Id, Roles.User);
+            var roleResult = await _identityService.AddToRoleAsync(userDto.Id, Roles.User, ct);
             if (!roleResult.IsSuccess)
             {
                 _logger.LogWarning("Failed to assign default role to user {UserId}", userDto.Id);
@@ -85,7 +85,7 @@ namespace Raksha.Application.Services
             var accessToken = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
             var refreshToken = CreateRefreshToken(userDto.Id, accessToken);
 
-            await _refreshTokenRepository.AddAsync(refreshToken);
+            await _refreshTokenRepository.AddAsync(refreshToken, ct);
             await _refreshTokenRepository.SaveChangesAsync();
 
             _logger.LogInformation("User {UserId} registered with email {Email}", userDto.Id, userDto.Email);
@@ -102,7 +102,7 @@ namespace Raksha.Application.Services
             }, message: "Registration successful.");
         }
 
-        public async Task<Result<AuthResponse>> LoginAsync(LoginRequest request)
+        public async Task<Result<AuthResponse>> LoginAsync(LoginRequest request, CancellationToken ct = default)
         {
             // Validation
             if (string.IsNullOrWhiteSpace(request.Email))
@@ -112,15 +112,22 @@ namespace Raksha.Application.Services
                 return Result<AuthResponse>.Failure("Password is required.");
 
             // Find user
-            var userDto = await _identityService.FindByEmailAsync(request.Email);
+            var userDto = await _identityService.FindByEmailAsync(request.Email, ct);
             if (userDto == null)
             {
                 _logger.LogWarning("Failed login attempt for email {Email}", request.Email);
                 return Result<AuthResponse>.Failure("Invalid email or password.");
             }
 
+            // Check user status
+            if (userDto.Status == EntityStatus.Inactive)
+                return Result<AuthResponse>.Failure("Your account has been deactivated. Please contact support.");
+
+            if (userDto.Status == EntityStatus.Deleted)
+                return Result<AuthResponse>.Failure("Invalid email or password.");
+
             // Check password
-            var signInResult = await _identityService.CheckPasswordSignInAsync(userDto.Id, request.Password);
+            var signInResult = await _identityService.CheckPasswordSignInAsync(userDto.Id, request.Password, ct);
             if (!signInResult.IsSuccess)
             {
                 _logger.LogWarning("Failed login attempt for email {Email}", request.Email);
@@ -128,11 +135,11 @@ namespace Raksha.Application.Services
             }
 
             // Generate tokens
-            var roles = await _identityService.GetRolesAsync(userDto.Id);
+            var roles = await _identityService.GetRolesAsync(userDto.Id, ct);
             var accessToken = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
             var refreshToken = CreateRefreshToken(userDto.Id, accessToken);
 
-            await _refreshTokenRepository.AddAsync(refreshToken);
+            await _refreshTokenRepository.AddAsync(refreshToken, ct);
             await _refreshTokenRepository.SaveChangesAsync();
 
             _logger.LogInformation("User {UserId} logged in", userDto.Id);
@@ -149,7 +156,7 @@ namespace Raksha.Application.Services
             }, message: "Login successful.");
         }
 
-        public async Task<Result<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request)
+        public async Task<Result<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default)
         {
             // Validation
             if (string.IsNullOrWhiteSpace(request.AccessToken))
@@ -168,7 +175,7 @@ namespace Raksha.Application.Services
                 return Result<AuthResponse>.Failure("Invalid access token.");
 
             // Find existing refresh token
-            var existingToken = await _refreshTokenRepository.GetActiveByTokenAsync(request.RefreshToken, userId);
+            var existingToken = await _refreshTokenRepository.GetActiveByTokenAsync(request.RefreshToken, userId, ct);
             if (existingToken == null)
                 return Result<AuthResponse>.Failure("Invalid refresh token.");
 
@@ -179,22 +186,26 @@ namespace Raksha.Application.Services
             }
 
             // Find user
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result<AuthResponse>.Failure("User not found.");
+
+            // Check user status
+            if (userDto.Status == EntityStatus.Inactive || userDto.Status == EntityStatus.Deleted)
+                return Result<AuthResponse>.Failure("Your account is no longer active.");
 
             // Revoke old token
             existingToken.RevokedAt = DateTime.UtcNow;
 
             // Generate new tokens
-            var roles = await _identityService.GetRolesAsync(userId);
+            var roles = await _identityService.GetRolesAsync(userId, ct);
             var newAccessToken = _tokenService.GenerateAccessToken(userDto.Id, userDto.Email, userDto.UserName, roles);
             var newRefreshToken = CreateRefreshToken(userId, newAccessToken);
 
             // Link old token to new for audit trail
             existingToken.ReplacedByToken = newRefreshToken.Token;
 
-            await _refreshTokenRepository.AddAsync(newRefreshToken);
+            await _refreshTokenRepository.AddAsync(newRefreshToken, ct);
             await _refreshTokenRepository.SaveChangesAsync();
 
             _logger.LogInformation("Refresh token rotated for user {UserId}", userId);
@@ -211,9 +222,9 @@ namespace Raksha.Application.Services
             }, message: "Token refreshed successfully.");
         }
 
-        public async Task<Result> RevokeTokenAsync(string refreshToken)
+        public async Task<Result> RevokeTokenAsync(string refreshToken, CancellationToken ct = default)
         {
-            var token = await _refreshTokenRepository.GetByTokenAsync(refreshToken);
+            var token = await _refreshTokenRepository.GetByTokenAsync(refreshToken, ct);
 
             if (token == null)
                 return Result.Failure("Invalid or already revoked token.");
@@ -229,7 +240,7 @@ namespace Raksha.Application.Services
             return Result.Success("Token revoked successfully.");
         }
 
-        public async Task<Result> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
+        public async Task<Result> ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken ct = default)
         {
             // Validation
             if (string.IsNullOrWhiteSpace(request.CurrentPassword))
@@ -242,22 +253,22 @@ namespace Raksha.Application.Services
                 return Result.Failure("New password must be different from current password.");
 
             // Find user
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
             // Change password via identity abstraction
-            var changeResult = await _identityService.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword);
+            var changeResult = await _identityService.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword, ct);
             if (!changeResult.IsSuccess)
                 return changeResult;
 
             // Invalidate all sessions via session abstraction
-            var invalidateResult = await _sessionService.InvalidateAllSessionsAsync(userId);
+            var invalidateResult = await _sessionService.InvalidateAllSessionsAsync(userId, ct);
             if (!invalidateResult.IsSuccess)
                 return invalidateResult;
 
             // Audit log
-            await _auditService.LogAsync(userId, userDto.Email, "PasswordChange", "Password changed by user.");
+            await _auditService.LogAsync(userId, userDto.Email, "PasswordChange", "Password changed by user.", ct);
 
             _logger.LogInformation("Password changed for user {UserId}", userId);
             return Result.Success("Password changed successfully. All sessions have been invalidated.");

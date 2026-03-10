@@ -26,19 +26,19 @@ namespace Raksha.Application.Services
             _logger = logger;
         }
 
-        public async Task<Result<UserResponse>> GetByIdAsync(Guid userId)
+        public async Task<Result<UserResponse>> GetByIdAsync(Guid userId, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdWithDetailsAsync(userId);
+            var userDto = await _identityService.FindByIdWithDetailsAsync(userId, ct);
             if (userDto == null)
                 return Result<UserResponse>.Failure("User not found.");
 
             return Result<UserResponse>.Success(data: MapToResponse(userDto));
         }
 
-        public async Task<Result<PagedResult<UserResponse>>> GetAllAsync(UserFilterRequest filter)
+        public async Task<Result<PagedResult<UserResponse>>> GetAllAsync(UserFilterRequest filter, CancellationToken ct = default)
         {
             var (users, totalCount) = await _identityService.GetFilteredUsersAsync(
-                filter.SearchTerm, filter.Status, filter.Role, filter.Page, filter.PageSize);
+                filter.SearchTerm, filter.Status, filter.Role, filter.Page, filter.PageSize, ct);
 
             var userResponses = users.Select(MapToResponse).ToList();
 
@@ -51,13 +51,13 @@ namespace Raksha.Application.Services
             });
         }
 
-        public async Task<Result> UpdateProfileAsync(Guid userId, UpdateUserProfileRequest request)
+        public async Task<Result> UpdateProfileAsync(Guid userId, UpdateUserProfileRequest request, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(request.FirstName))
                 return Result.Failure("First name is required.");
 
             // Get current profile for change tracking
-            var userDto = await _identityService.FindByIdWithDetailsAsync(userId);
+            var userDto = await _identityService.FindByIdWithDetailsAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
@@ -71,97 +71,97 @@ namespace Raksha.Application.Services
                 changes.Add("ImageKey updated");
 
             // Update via identity abstraction
-            var result = await _identityService.UpdateProfileAsync(userId, request.FirstName, request.LastName, request.ImageKey);
+            var result = await _identityService.UpdateProfileAsync(userId, request.FirstName, request.LastName, request.ImageKey, ct);
             if (!result.IsSuccess)
                 return result;
 
             // Audit log
             if (changes.Count > 0)
-                await _auditService.LogAsync(userId, userDto.Email, "ProfileUpdate", string.Join("; ", changes));
+                await _auditService.LogAsync(userId, userDto.Email, "ProfileUpdate", string.Join("; ", changes), ct);
 
             _logger.LogInformation("Profile updated for user {UserId}", userId);
 
             return Result.Success("Profile updated successfully.");
         }
 
-        public async Task<Result> ActivateAsync(Guid userId)
+        public async Task<Result> ActivateAsync(Guid userId, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
-            var result = await _identityService.UpdateUserStatusAsync(userId, (int)EntityStatus.Active);
+            var result = await _identityService.UpdateUserStatusAsync(userId, EntityStatus.Active, ct);
             if (!result.IsSuccess) return result;
 
             _logger.LogInformation("User {UserId} activated", userId);
             return Result.Success("User activated successfully.");
         }
 
-        public async Task<Result> DeactivateAsync(Guid userId)
+        public async Task<Result> DeactivateAsync(Guid userId, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
-            var result = await _identityService.UpdateUserStatusAsync(userId, (int)EntityStatus.Inactive);
+            var result = await _identityService.UpdateUserStatusAsync(userId, EntityStatus.Inactive, ct);
             if (!result.IsSuccess) return result;
 
             _logger.LogInformation("User {UserId} deactivated", userId);
             return Result.Success("User deactivated successfully.");
         }
 
-        public async Task<Result> DeleteAsync(Guid userId)
+        public async Task<Result> DeleteAsync(Guid userId, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
-            var result = await _identityService.UpdateUserStatusAsync(userId, (int)EntityStatus.Deleted);
+            var result = await _identityService.UpdateUserStatusAsync(userId, EntityStatus.Deleted, ct);
             if (!result.IsSuccess) return result;
 
             _logger.LogInformation("User {UserId} soft-deleted", userId);
             return Result.Success("User deleted successfully.");
         }
 
-        public async Task<Result> AssignRoleAsync(Guid userId, string role)
+        public async Task<Result> AssignRoleAsync(Guid userId, string role, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
-            var roleExists = await _identityService.RoleExistsAsync(role);
+            var roleExists = await _identityService.RoleExistsAsync(role, ct);
             if (!roleExists)
                 return Result.Failure($"Role '{role}' does not exist.");
 
-            var isInRole = await _identityService.IsInRoleAsync(userId, role);
+            var isInRole = await _identityService.IsInRoleAsync(userId, role, ct);
             if (isInRole)
                 return Result.Failure($"User already has role '{role}'.");
 
-            var result = await _identityService.AddToRoleAsync(userId, role);
+            var result = await _identityService.AddToRoleAsync(userId, role, ct);
             if (!result.IsSuccess) return result;
 
             _logger.LogInformation("Role '{Role}' assigned to user {UserId}", role, userId);
             return Result.Success($"Role '{role}' assigned successfully.");
         }
 
-        public async Task<Result> RemoveRoleAsync(Guid userId, string role)
+        public async Task<Result> RemoveRoleAsync(Guid userId, string role, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
-            var isInRole = await _identityService.IsInRoleAsync(userId, role);
+            var isInRole = await _identityService.IsInRoleAsync(userId, role, ct);
             if (!isInRole)
                 return Result.Failure($"User does not have role '{role}'.");
 
-            var result = await _identityService.RemoveFromRoleAsync(userId, role);
+            var result = await _identityService.RemoveFromRoleAsync(userId, role, ct);
             if (!result.IsSuccess) return result;
 
             _logger.LogInformation("Role '{Role}' removed from user {UserId}", role, userId);
             return Result.Success($"Role '{role}' removed successfully.");
         }
 
-        public async Task<Result<UserResponse>> CreateAsync(CreateUserRequest request)
+        public async Task<Result<UserResponse>> CreateAsync(CreateUserRequest request, CancellationToken ct = default)
         {
             // Validation
             if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
@@ -181,7 +181,7 @@ namespace Raksha.Application.Services
                 return Result<UserResponse>.Failure("Role must be 'Admin' or 'User'.");
 
             // Duplicate check
-            var duplicate = await _identityService.CheckDuplicateAsync(request.Email, request.UserName);
+            var duplicate = await _identityService.CheckDuplicateAsync(request.Email, request.UserName, ct);
             if (duplicate != null)
             {
                 return duplicate.IsDuplicateEmail
@@ -191,7 +191,7 @@ namespace Raksha.Application.Services
 
             // Create user
             var createResult = await _identityService.CreateUserAsync(
-                request.Email, request.UserName, request.Password, request.FirstName, request.LastName);
+                request.Email, request.UserName, request.Password, request.FirstName, request.LastName, ct);
 
             if (!createResult.IsSuccess)
                 return Result<UserResponse>.Failure(createResult.Message);
@@ -199,7 +199,7 @@ namespace Raksha.Application.Services
             var userDto = createResult.Data!;
 
             // Assign role
-            var roleResult = await _identityService.AddToRoleAsync(userDto.Id, request.Role);
+            var roleResult = await _identityService.AddToRoleAsync(userDto.Id, request.Role, ct);
             if (!roleResult.IsSuccess)
             {
                 _logger.LogWarning("Failed to assign role '{Role}' to user {UserId}", request.Role, userDto.Id);
@@ -213,13 +213,13 @@ namespace Raksha.Application.Services
             return Result<UserResponse>.Success(data: MapToResponse(userDto), message: "User created successfully.");
         }
 
-        public async Task<Result> ForceLogoutAsync(Guid userId)
+        public async Task<Result> ForceLogoutAsync(Guid userId, CancellationToken ct = default)
         {
-            var userDto = await _identityService.FindByIdAsync(userId);
+            var userDto = await _identityService.FindByIdAsync(userId, ct);
             if (userDto == null)
                 return Result.Failure("User not found.");
 
-            var invalidateResult = await _sessionService.InvalidateAllSessionsAsync(userId);
+            var invalidateResult = await _sessionService.InvalidateAllSessionsAsync(userId, ct);
             if (!invalidateResult.IsSuccess)
                 return invalidateResult;
 

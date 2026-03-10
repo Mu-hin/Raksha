@@ -22,7 +22,7 @@ namespace Raksha.Api.Middleware
                 {
                     var jwt = authHeader["Bearer ".Length..].Trim();
 
-                    if (await tokenService.IsTokenBlacklistedAsync(jwt))
+                    if (await tokenService.IsTokenBlacklistedAsync(jwt, context.RequestAborted))
                     {
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         await context.Response.WriteAsJsonAsync(

@@ -23,7 +23,7 @@ namespace Raksha.Infrastructure.Services
             _logger = logger;
         }
 
-        public async Task<Result> SaveProfilePictureAsync(Guid userId, Stream fileStream, string fileName)
+        public async Task<Result> SaveProfilePictureAsync(Guid userId, Stream fileStream, string fileName, CancellationToken ct = default)
         {
             if (fileStream.Length == 0)
                 return Result.Failure("File is empty.");
@@ -48,14 +48,14 @@ namespace Raksha.Infrastructure.Services
 
             var filePath = Path.Combine(storagePath, $"{userId}{extension}");
             using var outputStream = new FileStream(filePath, FileMode.Create);
-            await fileStream.CopyToAsync(outputStream);
+            await fileStream.CopyToAsync(outputStream, ct);
 
             _logger.LogInformation("Profile picture saved for user {UserId}: {FileName}", userId, $"{userId}{extension}");
 
             return Result.Success($"{userId}{extension}");
         }
 
-        public Task<(Stream? FileStream, string? ContentType)?> GetProfilePictureAsync(Guid userId)
+        public Task<(Stream? FileStream, string? ContentType)?> GetProfilePictureAsync(Guid userId, CancellationToken ct = default)
         {
             var storagePath = Path.GetFullPath(_fileSettings.ProfilePictureStoragePath);
 
@@ -73,7 +73,7 @@ namespace Raksha.Infrastructure.Services
             return Task.FromResult<(Stream? FileStream, string? ContentType)?>(null);
         }
 
-        public Task<Result> DeleteProfilePictureAsync(Guid userId)
+        public Task<Result> DeleteProfilePictureAsync(Guid userId, CancellationToken ct = default)
         {
             var storagePath = Path.GetFullPath(_fileSettings.ProfilePictureStoragePath);
 
