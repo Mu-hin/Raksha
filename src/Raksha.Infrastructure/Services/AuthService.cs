@@ -78,13 +78,18 @@ namespace Raksha.Infrastructure.Services
             }
 
             // Assign default role — no need to look up the role entity
-            await _userManager.AddToRoleAsync(user, Roles.User);
+            var roleResult = await _userManager.AddToRoleAsync(user, Roles.User);
+            if (!roleResult.Succeeded)
+            {
+                _logger.LogWarning("Failed to assign default role to user {UserId}", user.Id);
+                return Result<AuthResponse>.Failure("Registration failed: could not assign default role.");
+            }
             var roles = new List<string> { Roles.User };
 
             var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email!, user.UserName!, roles);
             var refreshToken = CreateRefreshToken(user.Id);
 
-            user.RefreshTokens.Add(refreshToken);
+            _dbContext.Set<RefreshToken>().Add(refreshToken);
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("User {UserId} registered with email {Email}", user.Id, user.Email);

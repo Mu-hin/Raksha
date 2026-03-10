@@ -1,5 +1,6 @@
 
 
+using Microsoft.EntityFrameworkCore;
 using Raksha.Api.Endpoints;
 using Raksha.Api.Middleware;
 using Raksha.Infrastructure;
@@ -29,8 +30,8 @@ namespace Raksha.Api
 
             var app = builder.Build();
 
-            // Seed default roles
-            await SeedRolesAsync(app);
+            // Seed roles and admin user
+            await SeedIdentityDataAsync(app);
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -52,11 +53,15 @@ namespace Raksha.Api
             app.Run();
         }
 
-        private static async Task SeedRolesAsync(WebApplication app)
+        private static async Task SeedIdentityDataAsync(WebApplication app)
         {
             using var scope = app.Services.CreateScope();
-            var roleSeeder = scope.ServiceProvider.GetRequiredService<IRoleSeeder>();
-            await roleSeeder.SeedRolesAsync();
+
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await dbContext.Database.MigrateAsync();
+
+            var seeder = scope.ServiceProvider.GetRequiredService<IIdentitySeeder>();
+            await seeder.SeedAsync();
         }
     }
 }

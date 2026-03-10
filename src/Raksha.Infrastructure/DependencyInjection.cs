@@ -117,8 +117,10 @@ namespace Raksha.Infrastructure
             #endregion
 
             #region Services
+            services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
-            services.AddScoped<IRoleSeeder, RoleSeeder>();
+            services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IIdentitySeeder, IdentitySeeder>();
             #endregion
         }
     }
