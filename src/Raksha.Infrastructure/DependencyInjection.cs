@@ -1,16 +1,20 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
 using Raksha.Application.Interfaces;
+using Raksha.Application.Models;
 using Raksha.Domain.Interfaces;
 using Raksha.Infrastructure.Data;
 using Raksha.Infrastructure.Identity;
 using Raksha.Infrastructure.Repositories;
 using Raksha.Infrastructure.Services;
 using StackExchange.Redis;
+using System.Text;
 
 namespace Raksha.Infrastructure
 {
@@ -83,6 +87,37 @@ namespace Raksha.Infrastructure
             services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
             services.AddScoped(typeof(ISqlRepository<,>), typeof(SqlRepository<,>));
             services.AddScoped(typeof(INoSqlRepository<,>), typeof(NoSqlRepository<,>));
+            #endregion
+
+            #region JWT Authentication
+            var jwtSettings = configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
+            services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSettings.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret)),
+                    //ClockSkew = TimeSpan.Zero
+                };
+
+                //options.MapInboundClaims = true;
+            });
+            #endregion
+
+            #region Services
+            services.AddScoped<IAuthService, AuthService>();
             #endregion
         }
     }

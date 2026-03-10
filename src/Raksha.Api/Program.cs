@@ -37,7 +37,8 @@ namespace Raksha.Api
 
             app.UseHttpsRedirection();
 
-            //app.UseAuthorization();
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             var summaries = new[]
             {
