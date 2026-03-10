@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: raksha-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: "123at#"
+      POSTGRES_DB: auth-demo
+    ports:
+      - "5433:5432"
+    volumes:
+      - raksha-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d auth-demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:8
+    container_name: raksha-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: "123at#"
+      MONGO_INITDB_DATABASE: auth-demo
+    ports:
+      - "27018:27017"
+    volumes:
+      - raksha-mongo-data:/data/db
+      - ./docker/mongo/init-db.js:/docker-entrypoint-initdb.d/init-db.js
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "-u", "admin", "-p", "123at#", "--quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:8
+    container_name: raksha-redis
+    command: redis-server --requirepass "123at#"
+    ports:
+      - "6380:6379"
+    volumes:
+      - raksha-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123at#", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Raksha.Api/Dockerfile
+    container_name: raksha-api
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__PostgreConnectionString: "Host=postgres;Port=5432;Database=auth-demo;Username=admin;Password=123at#"
+      ConnectionStrings__MongoDBConnectionString: "mongodb://admin:123at%23@mongodb:27017/auth-demo?authSource=admin"
+      ConnectionStrings__RedisConnectionString: "redis:6379,password=123at#"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  raksha-postgres-data:
+  raksha-mongo-data:
+  raksha-redis-data:

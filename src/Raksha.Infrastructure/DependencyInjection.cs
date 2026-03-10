@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -120,6 +121,25 @@ namespace Raksha.Infrastructure
                 };
 
                 //options.MapInboundClaims = true;
+
+                options.Events = new JwtBearerEvents
+                {
+                    OnChallenge = async context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsJsonAsync(
+                            Result.Failure("You are not authenticated. Please provide a valid token."));
+                    },
+                    OnForbidden = async context =>
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsJsonAsync(
+                            Result.Failure("You do not have permission to access this resource."));
+                    }
+                };
             });
             #endregion
 

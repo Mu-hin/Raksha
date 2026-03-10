@@ -13,6 +13,9 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Raksha.Api/Raksha.Api.csproj", "src/Raksha.Api/"]
+COPY ["src/Raksha.Application/Raksha.Application.csproj", "src/Raksha.Application/"]
+COPY ["src/Raksha.Infrastructure/Raksha.Infrastructure.csproj", "src/Raksha.Infrastructure/"]
+COPY ["src/Raksha.Domain/Raksha.Domain.csproj", "src/Raksha.Domain/"]
 RUN dotnet restore "./src/Raksha.Api/Raksha.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Raksha.Api"
