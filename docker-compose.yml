@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: raksha-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: "123at#"
+      POSTGRES_DB: auth-demo
+    ports:
+      - "5433:5432"
+    volumes:
+      - raksha-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:8
+    container_name: raksha-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: "123at#"
+      MONGO_INITDB_DATABASE: auth-demo
+    ports:
+      - "27018:27017"
+    volumes:
+      - raksha-mongo-data:/data/db
+      - ./docker/mongo/init-db.js:/docker-entrypoint-initdb.d/init-db.js
+    restart: unless-stopped
+
+  redis:
+    image: redis:8
+    container_name: raksha-redis
+    command: redis-server --requirepass "123at#"
+    ports:
+      - "6380:6379"
+    volumes:
+      - raksha-redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  raksha-postgres-data:
+  raksha-mongo-data:
+  raksha-redis-data:
