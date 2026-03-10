@@ -1,4 +1,4 @@
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
 
 namespace Raksha.Api.Middleware
@@ -12,7 +12,7 @@ namespace Raksha.Api.Middleware
             _next = next;
         }
 
-        public async Task InvokeAsync(HttpContext context, IRedisCacheService redisCacheService)
+        public async Task InvokeAsync(HttpContext context, ITokenService tokenService)
         {
             if (context.User.Identity?.IsAuthenticated == true)
             {
@@ -22,7 +22,7 @@ namespace Raksha.Api.Middleware
                 {
                     var jwt = authHeader["Bearer ".Length..].Trim();
 
-                    if (await redisCacheService.IsJwtBlacklistedAsync(jwt))
+                    if (await tokenService.IsTokenBlacklistedAsync(jwt))
                     {
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         await context.Response.WriteAsJsonAsync(

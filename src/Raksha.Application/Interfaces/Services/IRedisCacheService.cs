@@ -1,4 +1,4 @@
-namespace Raksha.Application.Interfaces
+namespace Raksha.Application.Interfaces.Services
 {
     public interface IRedisCacheService
     {
@@ -16,8 +16,7 @@ namespace Raksha.Application.Interfaces
         Task<bool> HashRemoveAsync(string hashKey, string field);
         Task<bool> HashExistsAsync(string hashKey, string field);
 
-        // JWT Blacklist operations
-        Task BlacklistJwtTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl);
-        Task<bool> IsJwtBlacklistedAsync(string jwtToken);
+        // Lua Script execution
+        Task<long> ExecuteLuaScriptAsync(string script, string[] keys, string[] values);
     }
 }

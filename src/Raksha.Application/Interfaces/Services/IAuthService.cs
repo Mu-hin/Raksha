@@ -1,7 +1,7 @@
 using Raksha.Application.DTOs.Auth;
 using Raksha.Application.Models;
 
-namespace Raksha.Application.Interfaces
+namespace Raksha.Application.Interfaces.Services
 {
     public interface IAuthService
     {

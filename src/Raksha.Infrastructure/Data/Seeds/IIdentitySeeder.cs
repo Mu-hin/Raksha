@@ -1,4 +1,4 @@
-namespace Raksha.Infrastructure.Data
+namespace Raksha.Infrastructure.Data.Seeds
 {
     public interface IIdentitySeeder
     {

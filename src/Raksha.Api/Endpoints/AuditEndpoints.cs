@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Raksha.Application.DTOs.Audit;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Domain.Common;
 
 namespace Raksha.Api.Endpoints

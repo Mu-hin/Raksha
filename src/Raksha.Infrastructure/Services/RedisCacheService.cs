@@ -1,7 +1,5 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using StackExchange.Redis;
 
 namespace Raksha.Infrastructure.Services
@@ -83,42 +81,14 @@ namespace Raksha.Infrastructure.Services
 
         #endregion
 
-        #region JWT Blacklist Operations
+        #region Lua Script Execution
 
-        private const string BlacklistPrefix = "blacklist:jwt:";
-
-        private const string BlacklistLuaScript =
-            @"local ttl = tonumber(ARGV[1])
-              for i = 1, #KEYS do
-                  redis.call('SETEX', KEYS[i], ttl, '1')
-              end
-              return #KEYS";
-
-        public async Task BlacklistJwtTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl)
+        public async Task<long> ExecuteLuaScriptAsync(string script, string[] keys, string[] values)
         {
-            var keys = jwtTokens
-                .Select(token => (RedisKey)$"{BlacklistPrefix}{HashJwt(token)}")
-                .ToArray();
-
-            if (keys.Length == 0)
-                return;
-
-            var ttlSeconds = (int)ttl.TotalSeconds;
-            await _database.ScriptEvaluateAsync(BlacklistLuaScript,
-                keys: keys,
-                values: new RedisValue[] { ttlSeconds });
-        }
-
-        public async Task<bool> IsJwtBlacklistedAsync(string jwtToken)
-        {
-            var key = $"{BlacklistPrefix}{HashJwt(jwtToken)}";
-            return await _database.KeyExistsAsync(key);
-        }
-
-        private static string HashJwt(string jwt)
-        {
-            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(jwt));
-            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+            var redisKeys = keys.Select(k => (RedisKey)k).ToArray();
+            var redisValues = values.Select(v => (RedisValue)v).ToArray();
+            var result = await _database.ScriptEvaluateAsync(script, redisKeys, redisValues);
+            return (long)result;
         }
 
         #endregion

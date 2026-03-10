@@ -2,10 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Raksha.Domain.Common;
 using Raksha.Domain.Entities;
-using Raksha.Infrastructure.Data.Seeds;
 using Raksha.Infrastructure.Identity;
 
-namespace Raksha.Infrastructure.Data
+namespace Raksha.Infrastructure.Data.Seeds
 {
     public class IdentitySeeder : IIdentitySeeder
     {
@@ -67,7 +66,7 @@ namespace Raksha.Infrastructure.Data
                 Status = (int)EntityStatus.Active,
                 UserDetails = new UserDetails
                 {
-                    FullName = "System Administrator",
+                    FirstName = "System",
                     LastName = "Administrator"
                 },
                 RefreshTokens = new List<RefreshToken>()

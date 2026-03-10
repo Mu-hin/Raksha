@@ -1,20 +1,32 @@
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
-namespace Raksha.Infrastructure.Services
+namespace Raksha.Application.Services
 {
     public class TokenService : ITokenService
     {
         private readonly JwtSettings _jwtSettings;
+        private readonly IRedisCacheService _redisCacheService;
 
-        public TokenService(IOptions<JwtSettings> jwtSettings)
+        private const string BlacklistPrefix = "blacklist:jwt:";
+
+        private const string BlacklistLuaScript =
+            @"local ttl = tonumber(ARGV[1])
+              for i = 1, #KEYS do
+                  redis.call('SETEX', KEYS[i], ttl, '1')
+              end
+              return #KEYS";
+
+        public TokenService(IOptions<JwtSettings> jwtSettings, IRedisCacheService redisCacheService)
         {
             _jwtSettings = jwtSettings.Value;
+            _redisCacheService = redisCacheService;
         }
 
         public string GenerateAccessToken(Guid userId, string email, string userName, IList<string> roles)
@@ -83,5 +95,34 @@ namespace Raksha.Infrastructure.Services
                 return null;
             }
         }
+
+        #region JWT Blacklist Operations
+
+        public async Task BlacklistTokensAsync(IEnumerable<string> jwtTokens, TimeSpan ttl)
+        {
+            var keys = jwtTokens
+                .Select(token => $"{BlacklistPrefix}{HashJwt(token)}")
+                .ToArray();
+
+            if (keys.Length == 0)
+                return;
+
+            var ttlSeconds = ((int)ttl.TotalSeconds).ToString();
+            await _redisCacheService.ExecuteLuaScriptAsync(BlacklistLuaScript, keys, new[] { ttlSeconds });
+        }
+
+        public async Task<bool> IsTokenBlacklistedAsync(string jwtToken)
+        {
+            var key = $"{BlacklistPrefix}{HashJwt(jwtToken)}";
+            return await _redisCacheService.ExistsAsync(key);
+        }
+
+        private static string HashJwt(string jwt)
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(jwt));
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+        }
+
+        #endregion
     }
 }

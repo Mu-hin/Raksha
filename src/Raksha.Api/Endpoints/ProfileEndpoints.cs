@@ -1,5 +1,5 @@
 using Raksha.Application.DTOs.User;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
 using System.Security.Claims;
 
@@ -62,7 +62,7 @@ namespace Raksha.Api.Endpoints
                 var currentUser = await userService.GetByIdAsync(userId.Value);
                 if (currentUser.IsSuccess && currentUser.Data != null)
                 {
-                    updateRequest.FullName = currentUser.Data.FullName;
+                    updateRequest.FirstName = currentUser.Data.FirstName;
                     updateRequest.LastName = currentUser.Data.LastName;
                     updateRequest.ImageKey = saveResult.Message;
                 }

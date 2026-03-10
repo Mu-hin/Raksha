@@ -4,12 +4,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Repositories;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
+using Raksha.Application.Services;
 using Raksha.Domain.Interfaces;
 using Raksha.Infrastructure.Data;
+using Raksha.Infrastructure.Data.Seeds;
 using Raksha.Infrastructure.Identity;
 using Raksha.Infrastructure.Repositories;
 using Raksha.Infrastructure.Services;
@@ -38,6 +44,7 @@ namespace Raksha.Infrastructure
             #endregion
 
             #region MongoDB
+            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
             services.AddSingleton<IMongoClient>(sp =>
             {
                 return new MongoClient(mongoDBConnectionString);
@@ -116,12 +123,19 @@ namespace Raksha.Infrastructure
             });
             #endregion
 
-            #region Services
+            #region Application Services
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IUserService, UserService>();
-            services.AddScoped<IIdentitySeeder, IdentitySeeder>();
             services.AddScoped<IAuditService, AuditService>();
+            #endregion
+
+            #region Infrastructure Services
+            services.AddScoped<IAuditRepository, AuditRepository>();
+            services.AddScoped<IIdentityService, IdentityService>();
+            services.AddScoped<ISessionService, SessionService>();
+            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+            services.AddScoped<IIdentitySeeder, IdentitySeeder>();
             services.AddScoped<IFileService, FileService>();
             services.Configure<FileSettings>(configuration.GetSection(FileSettings.SectionName));
             #endregion

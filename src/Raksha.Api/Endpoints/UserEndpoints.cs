@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Raksha.Application.DTOs.User;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
 using Raksha.Domain.Common;
 

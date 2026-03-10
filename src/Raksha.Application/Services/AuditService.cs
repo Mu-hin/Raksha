@@ -1,20 +1,19 @@
 using Microsoft.Extensions.Logging;
-using MongoDB.Driver;
 using Raksha.Application.DTOs.Audit;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Repositories;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
 using Raksha.Domain.Entities;
-using Raksha.Domain.Interfaces;
 
-namespace Raksha.Infrastructure.Services
+namespace Raksha.Application.Services
 {
     public class AuditService : IAuditService
     {
-        private readonly INoSqlRepository<AuditLog, string> _auditRepository;
+        private readonly IAuditRepository _auditRepository;
         private readonly ILogger<AuditService> _logger;
 
         public AuditService(
-            INoSqlRepository<AuditLog, string> auditRepository,
+            IAuditRepository auditRepository,
             ILogger<AuditService> logger)
         {
             _auditRepository = auditRepository;
@@ -25,7 +24,7 @@ namespace Raksha.Infrastructure.Services
         {
             var auditLog = new AuditLog
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = Guid.NewGuid(),
                 UserId = userId,
                 UserEmail = userEmail,
                 Action = action,
@@ -80,7 +79,7 @@ namespace Raksha.Infrastructure.Services
                 PageSize = filter.PageSize
             };
 
-            return Result<PagedResult<AuditLogResponse>>.Success(data:pagedResult);
+            return await Task.FromResult(Result<PagedResult<AuditLogResponse>>.Success(data: pagedResult));
         }
     }
 }

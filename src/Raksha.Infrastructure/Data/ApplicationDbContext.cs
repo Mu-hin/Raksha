@@ -26,7 +26,7 @@ namespace Raksha.Infrastructure.Data
         {
             base.OnModelCreating(builder);
 
-            builder.Entity<ApplicationRole>().HasData(new ApplicationRoleSeed().ApplicationRoles);
+            //builder.Entity<ApplicationRole>().HasData(new ApplicationRoleSeed().ApplicationRoles);
             builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         }
 

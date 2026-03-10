@@ -5,6 +5,7 @@ using Raksha.Api.Endpoints;
 using Raksha.Api.Middleware;
 using Raksha.Infrastructure;
 using Raksha.Infrastructure.Data;
+using Raksha.Infrastructure.Data.Seeds;
 
 namespace Raksha.Api
 {

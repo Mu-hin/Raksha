@@ -1,5 +1,5 @@
 using Raksha.Application.DTOs.Auth;
-using Raksha.Application.Interfaces;
+using Raksha.Application.Interfaces.Services;
 using Raksha.Application.Models;
 using System.Security.Claims;
 
